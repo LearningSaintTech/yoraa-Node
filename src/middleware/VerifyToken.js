@@ -12,11 +12,11 @@ exports.verifyToken = async (req, res, next) => {
         }
 
         const token = authHeader.split(" ")[1]; // Extract token after 'Bearer'
-        console.log("Extracted token:", token);
+        // console.log("Extracted token:", token);
 
         // Verify the token
         const decodedInfo = jwt.verify(token, process.env.SECRET_KEY);
-        console.log("Decoded token info:", decodedInfo);
+        // console.log("Decoded token info:", decodedInfo);
 
         // Ensure required details exist in decoded token
         if (decodedInfo && decodedInfo._id) { // Fix: Check for `_id` instead of `id`

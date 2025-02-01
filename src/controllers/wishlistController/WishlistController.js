@@ -81,7 +81,6 @@ exports.removeFromWishlist = async (req, res) => {
     }
 };
 
-// ✅ Clear entire wishlist
 exports.clearWishlist = async (req, res) => {
     try {
         const userId = req.user._id;

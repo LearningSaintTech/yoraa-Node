@@ -12,6 +12,7 @@ const itemRouter = require("./src/routes/ItemRoutes");
 const SubCategoryRouter = require("./src/routes/SubCategoryRoutes");
 const CategoryRouter = require("./src/routes/CategoryRoutes");
 const wishlistRouter = require("./src/routes/WishlistRoutes");
+const cartRoutes = require("./src/routes/CartRoutes");
 
 const app = express();
 app.use(cors());
@@ -31,6 +32,7 @@ app.use("/api/categories", CategoryRouter);
 app.use("/api/subcategories", SubCategoryRouter);
 app.use("/api/items", itemRouter);
 app.use("/api/wishlist",wishlistRouter);
+app.use("/api/cart",cartRoutes);
 
 
 app.listen(8080,() => {
