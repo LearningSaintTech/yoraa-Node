@@ -7,6 +7,7 @@ const { ApiResponse } = require("../utils/ApiResponse");
 const { verifyToken } = require("../middleware/VerifyToken");
 const Item = require("../models/Item");
 const SubCategory = require("../models/SubCategory");
+const checkAdminRole = require("../middleware/checkAdminRole");
 
 const itemRouter = express.Router();
 
@@ -15,7 +16,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Create a new item with image upload
-itemRouter.post("/", upload.single("image"), async (req, res) => {
+itemRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json(ApiResponse(null, "No file uploaded", false, 400));
@@ -53,10 +54,10 @@ itemRouter.get("/", itemController.getAllItems);
 itemRouter.get("/:id", itemController.getItemById);
 
 
-itemRouter.get("/subcategory/:subCategoryId",verifyToken, itemController.getItemsBySubCategory);
+itemRouter.get("/subcategory/:subCategoryId", itemController.getItemsBySubCategory);
 
 // Update an item with new image upload
-itemRouter.put("/:id", upload.single("image"), async (req, res) => {
+itemRouter.put("/:id",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
 
 
@@ -92,6 +93,6 @@ itemRouter.put("/:id", upload.single("image"), async (req, res) => {
 });
 
 // Delete an item
-itemRouter.delete("/:id", itemController.deleteItem);
+itemRouter.delete("/:id",verifyToken,checkAdminRole, itemController.deleteItem);
 
 module.exports = itemRouter;

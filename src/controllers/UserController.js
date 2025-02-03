@@ -2,7 +2,8 @@ const User=require("../models/User")
 
 exports.getById=async(req,res)=>{
     try {
-        const {id}=req.params
+        console.log("params",req.user._id)
+        const id=req.user._id
         console.log(req);
         const result=(await User.findById(id)).toObject()
         delete result.password

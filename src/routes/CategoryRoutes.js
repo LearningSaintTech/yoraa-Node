@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const Category = require("../models/Category");
 const { ApiResponse } = require("../utils/ApiResponse");
 const { verifyToken } = require("../middleware/VerifyToken");
+const checkAdminRole = require("../middleware/checkAdminRole");
 
 const CategoryRouter = express.Router();
 
@@ -14,7 +15,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Create a new category with image upload
-CategoryRouter.post("/", upload.single("image"), async (req, res) => {
+CategoryRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       // Return early if no file is uploaded
@@ -48,13 +49,13 @@ CategoryRouter.post("/", upload.single("image"), async (req, res) => {
 });
 
 // Get all categories
-CategoryRouter.get("/", verifyToken, categoryController.getAllCategories);
+CategoryRouter.get("/", categoryController.getAllCategories);
 
 // Get a single category by ID
 CategoryRouter.get("/:id", categoryController.getCategoryById);
 
 // Update a category with new image upload
-CategoryRouter.put("/:id", upload.single("image"), async (req, res) => {
+CategoryRouter.put("/:id",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
 
     console.log("req.params.id", req.params.id)
@@ -83,6 +84,6 @@ CategoryRouter.put("/:id", upload.single("image"), async (req, res) => {
 });
 
 // Delete a category
-CategoryRouter.delete("/:id", categoryController.deleteCategory);
+CategoryRouter.delete("/:id",verifyToken,checkAdminRole, categoryController.deleteCategory);
 
 module.exports = CategoryRouter;

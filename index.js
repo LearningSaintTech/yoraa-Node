@@ -5,14 +5,13 @@ const cors = require("cors");
 
 
 const authRouter  = require("./src/routes/AuthRoutes");
-const { sendOTP } = require("./src/utils/generateOtp");
 const { connectToDB } = require("./src/database/db");
-const ProductRouter = require("./src/routes/Product");
 const itemRouter = require("./src/routes/ItemRoutes");
 const SubCategoryRouter = require("./src/routes/SubCategoryRoutes");
 const CategoryRouter = require("./src/routes/CategoryRoutes");
 const wishlistRouter = require("./src/routes/WishlistRoutes");
 const cartRoutes = require("./src/routes/CartRoutes");
+const userRoutes = require("./src/routes/UserRoutes");
 
 const app = express();
 app.use(cors());
@@ -25,6 +24,7 @@ connectToDB();
 
 app.use("/api/auth",authRouter);
 // app.use("/api/product",ProductRouter);
+app.use("/api/user",userRoutes);
 
 
 

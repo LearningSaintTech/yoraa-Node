@@ -7,6 +7,7 @@ const SubCategory = require("../models/SubCategory");
 const { ApiResponse } = require("../utils/ApiResponse");
 const Category = require("../models/Category");
 const { verifyToken } = require("../middleware/VerifyToken");
+const checkAdminRole = require("../middleware/checkAdminRole");
 
 const SubCategoryRouter = express.Router();
 
@@ -15,7 +16,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Create a new subcategory with image upload
-SubCategoryRouter.post("/", upload.single("image"), async (req, res) => {
+SubCategoryRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json(ApiResponse(null, "No file uploaded", false, 400));
@@ -56,13 +57,13 @@ SubCategoryRouter.post("/", upload.single("image"), async (req, res) => {
 SubCategoryRouter.get("/", subCategoryController.getAllSubCategories);
 
 // Get subcategories by category ID
-SubCategoryRouter.get("/category/:categoryId",verifyToken, subCategoryController.getSubCategoriesByCategory);
+SubCategoryRouter.get("/category/:categoryId", subCategoryController.getSubCategoriesByCategory);
 
 // Get a single subcategory by ID
 SubCategoryRouter.get("/:id", subCategoryController.getSubCategoryById);
 
 // Update a subcategory with new image upload
-SubCategoryRouter.put("/:id", upload.single("image"), async (req, res) => {
+SubCategoryRouter.put("/:id",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
     console.log("req.params.id", req.params.id);
     const existingSubCategory = await SubCategory.findById(req.params.id);
@@ -96,6 +97,6 @@ SubCategoryRouter.put("/:id", upload.single("image"), async (req, res) => {
 });
 
 // Delete a subcategory
-SubCategoryRouter.delete("/:id", subCategoryController.deleteSubCategory);
+SubCategoryRouter.delete("/:id",verifyToken,checkAdminRole, subCategoryController.deleteSubCategory);
 
 module.exports = SubCategoryRouter;
