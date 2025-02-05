@@ -1,18 +1,20 @@
-const mongoose=require('mongoose')
-const {Schema}=mongoose
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
 const addressSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    street: { type: String, required: true },
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    address: { type: String, required: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
-    postalCode: { type: String, required: true },
+    pinCode: { type: String, required: true },
     country: { type: String, required: true },
     phoneNumber: { type: String, required: true },
-    type: { type: String, enum: ["current", "new"], required: true }, // 'current' or 'new' address
+    type: { type: String, enum: ["current", "new"], required: true }, // Ensure only two types exist
   },
   { timestamps: true, versionKey: false }
 );
 
-module.exports=mongoose.model('Address',addressSchema)
+module.exports = mongoose.model("Address", addressSchema);

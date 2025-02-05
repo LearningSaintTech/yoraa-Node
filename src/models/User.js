@@ -22,6 +22,10 @@ const userSchema=new Schema({
     isAdmin:{
         type:Boolean,
         default:false
+    },
+    isProfile:{
+        type:Boolean,
+        default:false
     }
 })
 

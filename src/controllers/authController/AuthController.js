@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const {ApiResponse} = require("../../utils/ApiResponse");
 const {generateToken} = require("../../utils/generateToken");
 const { generateOtp } = require("../../utils/generateOtp");
+const UserProfile = require("../../models/UserProfile");
 
 
 exports.loginController = async (req, res) => {
@@ -76,6 +77,12 @@ exports.signUpController = async (req, res) => {
         });
 
         await newOtp.save();
+        const newUserProfile = new UserProfile({
+            user: createdUser._id,
+            
+        });
+        await newUserProfile.save();
+
 
         return res.status(201).json(ApiResponse(null, "Signup successful. OTP sent successfully.", true, 201));
     } catch (error) {

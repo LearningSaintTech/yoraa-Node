@@ -12,6 +12,9 @@ const CategoryRouter = require("./src/routes/CategoryRoutes");
 const wishlistRouter = require("./src/routes/WishlistRoutes");
 const cartRoutes = require("./src/routes/CartRoutes");
 const userRoutes = require("./src/routes/UserRoutes");
+const addressRoutes = require("./src/routes/AddressRoutes");
+const razorpayRoutes = require("./src/routes/paymentRoutes"); // Import Razorpay route
+const userProfileRoutes = require("./src/routes/UserProfileRoutes"); // Import Razorpay route
 
 const app = express();
 app.use(cors());
@@ -30,9 +33,14 @@ app.use("/api/user",userRoutes);
 
 app.use("/api/categories", CategoryRouter);
 app.use("/api/subcategories", SubCategoryRouter);
+
+
 app.use("/api/items", itemRouter);
 app.use("/api/wishlist",wishlistRouter);
 app.use("/api/cart",cartRoutes);
+app.use("/api/address",addressRoutes);
+app.use("/api/razorpay", razorpayRoutes);  // Add Razorpay API route
+app.use("/api/userProfile", userProfileRoutes);
 
 
 app.listen(8080,() => {
