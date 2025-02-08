@@ -4,16 +4,16 @@ const {Schema}=mongoose
 const userSchema=new Schema({
     name:{
         type:String,
-        required:true
+        required:false
     },
     phNo:{
         type:String,
-        unique:true,
-        required:true
+        unique:false,
+        required:false
     },
     password:{
         type:String,
-        required:true
+        required:false
     },
     isVerified:{
         type:Boolean,
@@ -26,7 +26,18 @@ const userSchema=new Schema({
     isProfile:{
         type:Boolean,
         default:false
-    }
+    },
+    email: {
+        type: String,
+        required: false,
+        unique: false,
+        default: "demo@example.com",
+      },
+      
+      firebaseUid: {
+        type: String,
+        required: false, // Firebase UID for Firebase users
+      },
 })
 
 module.exports=mongoose.model("User",userSchema)

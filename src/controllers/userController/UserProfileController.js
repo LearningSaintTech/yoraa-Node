@@ -70,13 +70,18 @@ exports.updateUserProfile = async (req, res) => {
         const updatedProfile = await UserProfile.findOneAndUpdate(
             { user: userId },
             { address, email, dob, gender, anniversary, stylePreferences, imageUrl },
-            { new: true, runValidators: true }
+            { new: true, runValidators: true },
+            
         );
+
 
         if (!updatedProfile) {
             return res.status(404).json({ message: "User Profile not found" });
         }
-
+ const user = await User.findById(userId);
+        user.isProfile = true;
+        user.email=updatedProfile.email;
+        await user.save();
         res.json(updatedProfile);
     } catch (error) {
         res.status(500).json({ message: error.message });

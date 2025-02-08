@@ -6,6 +6,7 @@ const {ApiResponse} = require("../../utils/ApiResponse");
 const {generateToken} = require("../../utils/generateToken");
 const { generateOtp } = require("../../utils/generateOtp");
 const UserProfile = require("../../models/UserProfile");
+const { signupFirebase, loginFirebase } = require('../../services/authService');
 
 
 exports.loginController = async (req, res) => {
@@ -205,3 +206,34 @@ exports.logout = async (req, res) => {
 		console.log(error);
 	}
 };
+
+
+exports.signupFirebase = async (req, res) => {
+    const { idToken } = req.body;
+    console.log("Firebase signup received with ID token:", idToken);
+  
+    try {
+      const token = await signupFirebase(idToken);
+      console.log("JWT token generated:", token);
+      res.status(201).json({ token });
+    } catch (error) {
+      console.error("Error during Firebase signup:", error);
+      res.status(400).json({ message: error.message });
+    }
+  };
+  
+  // Firebase login route
+  exports.loginFirebase = async (req, res) => {
+    const { idToken } = req.body;
+    console.log("Firebase login received with ID token:", idToken);
+  
+    try {
+      const token = await loginFirebase(idToken);
+      console.log("JWT token generated:", token);
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error("Error during Firebase login:", error);
+      res.status(400).json({ message: error.message });
+    }
+  };
+  
