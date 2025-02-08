@@ -2,11 +2,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const admin = require('../utils/firebaseConfig'); // Assuming firebaseConfig is set up
 const User = require('../models/User');
+const UserProfile = require("../models/UserProfile");
+const {ApiResponse} = require("../utils/ApiResponse");
 
 
 
 // Firebase signup logic
-exports.signupFirebase = async (idToken) => {
+exports.handleFirebaseSignup = async (idToken) => {
   try {
     // Verify the Firebase ID token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -20,25 +22,41 @@ exports.signupFirebase = async (idToken) => {
       firebaseUser = new User({
         email: decodedToken.email,
         firebaseUid: firebaseUid,
+        isVerified: true,
       });
-        console.log("firebaseUser",firebaseUser)
-      // Save the new user to the database
       await firebaseUser.save();
+
+      // Create associated user profile
+      const newUserProfile = new UserProfile({
+        user: firebaseUser._id,
+        email: firebaseUser.email,
+      });
+      await newUserProfile.save();
     }
 
     // Generate a JWT for the user
     const token = jwt.sign(
-      { id: firebaseUser._id, email: firebaseUser.email },
+      { _id: firebaseUser._id, email: firebaseUser.email },
       process.env.SECRET_KEY,
       { expiresIn: '1h' }
     );
+    const decodedToken1 = jwt.decode(token);
+    console.log("Decoded inside auth services  token payload:", decodedToken1);
+    
+    // Construct user object to return
+    const userObject = {
+      id: firebaseUser._id,
+      email: firebaseUser.email,
+      isVerified: firebaseUser.isVerified,
+    };
 
-    return token;
+    return { token, user: userObject }; // Return both token and user
   } catch (error) {
     console.error('Error during Firebase signup:', error);
     throw new Error('Firebase signup failed');
   }
 };
+
 
 // Firebase login logic
 exports.loginFirebase = async (idToken) => {

@@ -17,7 +17,7 @@ exports.verifyToken = async (req, res, next) => {
         // Verify the token
         const decodedInfo = jwt.verify(token, process.env.SECRET_KEY);
         // console.log("Decoded token info:", decodedInfo);
-
+    console.log("Decoded inside verify token services  token payload:", decodedInfo);
         // Ensure required details exist in decoded token
         if (decodedInfo && decodedInfo._id) { // Fix: Check for `_id` instead of `id`
             req.user = decodedInfo; // Attach user data to request

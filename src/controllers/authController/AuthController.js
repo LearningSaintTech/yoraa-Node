@@ -6,7 +6,7 @@ const {ApiResponse} = require("../../utils/ApiResponse");
 const {generateToken} = require("../../utils/generateToken");
 const { generateOtp } = require("../../utils/generateOtp");
 const UserProfile = require("../../models/UserProfile");
-const { signupFirebase, loginFirebase } = require('../../services/authService');
+const { handleFirebaseSignup, loginFirebase } = require('../../services/authService');
 
 
 exports.loginController = async (req, res) => {
@@ -55,6 +55,7 @@ exports.loginController = async (req, res) => {
 
 
 exports.signUpController = async (req, res) => {
+    console.log("req.body",req.body)
     try {
         const existingUser = await User.findOne({ phNo: req.body.phNo });
 
@@ -155,6 +156,7 @@ exports.verifyOtp = async (req, res) => {
 
 
 exports.generateOtp = async (req, res) => {
+    console.log("req.body",req.body)
     try {
         const { phNo } = req.body;
 
@@ -213,14 +215,16 @@ exports.signupFirebase = async (req, res) => {
     console.log("Firebase signup received with ID token:", idToken);
   
     try {
-      const token = await signupFirebase(idToken);
+      const { token, user } = await handleFirebaseSignup(idToken);  // Destructure token and user
       console.log("JWT token generated:", token);
-      res.status(201).json({ token });
+  
+      return res.status(200).json(ApiResponse({ token, user }, "OTP verified successfully", true, 200));
     } catch (error) {
       console.error("Error during Firebase signup:", error);
-      res.status(400).json({ message: error.message });
+      return res.status(400).json(ApiResponse(null, error.message, false, 400));
     }
   };
+  
   
   // Firebase login route
   exports.loginFirebase = async (req, res) => {

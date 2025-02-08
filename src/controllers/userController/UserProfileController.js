@@ -60,30 +60,61 @@ exports.createUserProfile = async (req, res) => {
 exports.updateUserProfile = async (req, res) => {
     const userId = req.user._id;
     try {
-        const { address, email, dob, gender, anniversary, stylePreferences } = req.body;
+        // Extract fields from request body
+        const { address, email, dob, gender, anniversary, stylePreferences, name, phNo } = req.body;
+console.log("req.body",req.body)
+        // Prepare the update object dynamically for UserProfile
+        let updateProfileFields = {};
+        if (address) updateProfileFields.address = address;
+        if (email) updateProfileFields.email = email;
+        if (dob) updateProfileFields.dob = dob;
+        if (gender) updateProfileFields.gender = gender;
+        if (anniversary) updateProfileFields.anniversary = anniversary;
+        if (stylePreferences) updateProfileFields.stylePreferences = stylePreferences;
 
-        let imageUrl = "";
+        // Handle image upload if file is provided
         if (req.file) {
-            imageUrl = await uploadMultipart(req.file, "userProfiles", userId);
+            const imageUrl = await uploadMultipart(req.file, "userProfiles", userId);
+            updateProfileFields.imageUrl = imageUrl;
         }
 
-        const updatedProfile = await UserProfile.findOneAndUpdate(
-            { user: userId },
-            { address, email, dob, gender, anniversary, stylePreferences, imageUrl },
-            { new: true, runValidators: true },
-            
-        );
+        // Update UserProfile if there are fields to update
+        let updatedProfile;
+        if (Object.keys(updateProfileFields).length > 0) {
+            updatedProfile = await UserProfile.findOneAndUpdate(
+                { user: userId },
+                { $set: updateProfileFields },
+                { new: true, runValidators: true }
+            );
 
-
-        if (!updatedProfile) {
-            return res.status(404).json({ message: "User Profile not found" });
+            if (!updatedProfile) {
+                return res.status(404).json({ message: "User Profile not found" });
+            }
         }
- const user = await User.findById(userId);
+
+        // Update User model (name, phone number, email)
+        const user = await User.findById(userId);
         user.isProfile = true;
-        user.email=updatedProfile.email;
+
+        if (name) user.name = name;  
+        console.log("phno",phNo)    // Update name if provided
+        if (phNo) user.phNo = phNo;      // Update phone number if provided
+        if (email) user.email = email;   // Update email if provided
+
         await user.save();
-        res.json(updatedProfile);
+
+        res.json({
+            message: "Profile updated successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                phNo: user.phNo,
+                email: user.email
+            },
+            profile: updatedProfile || {}  // Send updated profile or empty object if not updated
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
+
