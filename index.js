@@ -15,7 +15,7 @@ const userRoutes = require("./src/routes/UserRoutes");
 const addressRoutes = require("./src/routes/AddressRoutes");
 const razorpayRoutes = require("./src/routes/paymentRoutes"); // Import Razorpay route
 const userProfileRoutes = require("./src/routes/UserProfileRoutes"); // Import Razorpay route
-
+const itemDetailsRoutes = require("./src/routes/ItemDetailsRoutes");
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -36,6 +36,7 @@ app.use("/api/subcategories", SubCategoryRouter);
 
 
 app.use("/api/items", itemRouter);
+app.use("/api/itemDetails", itemDetailsRoutes);
 app.use("/api/wishlist",wishlistRouter);
 app.use("/api/cart",cartRoutes);
 app.use("/api/address",addressRoutes);

@@ -164,3 +164,33 @@ exports.deleteItem = async (req, res) => {
     res.status(500).json({ message: "Error deleting item", error: err.message });
   }
 };
+
+/**
+ * Get latest items by subCategoryId sorted by timestamp (latest first)
+ */
+exports.getLatestItemsBySubCategory = async (req, res) => {
+  console.log("1111111111111111")
+  try {
+    const { subCategoryId } = req.params; // Subcategory ID from request parameters
+    const { page = 1, limit = 10 } = req.query; // Pagination details from query parameters
+
+    // Find items in the subcategory and sort by timestamp
+    const items = await Item.find({ subCategoryId })
+      .sort({ createdAt: -1 }) // Sort by createdAt field, latest first
+      .skip((page - 1) * Number(limit)) // Skip items for pagination
+      .limit(Number(limit)); // Limit items per page
+
+    // Get total count of items in the subcategory
+    const totalItems = await Item.countDocuments({ subCategoryId });
+
+    // Send response with pagination details
+    res.status(200).json(ApiResponse(items, "Latest items fetched successfully", true, 200, {
+      totalPages: Math.ceil(totalItems / limit),
+      currentPage: Number(page),
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiResponse(null, "Error fetching latest items", false, 500, err.message));
+  }
+};
+

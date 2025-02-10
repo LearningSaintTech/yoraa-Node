@@ -52,6 +52,7 @@ itemRouter.get("/", itemController.getAllItems);
 
 // Get a single item by ID
 itemRouter.get("/:id", itemController.getItemById);
+itemRouter.get("/latest-items/:subCategoryId", itemController.getLatestItemsBySubCategory);
 
 
 itemRouter.get("/subcategory/:subCategoryId", itemController.getItemsBySubCategory);
