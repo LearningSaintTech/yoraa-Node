@@ -1,11 +1,11 @@
 const express = require("express");
-const  {loginController, signUpController, verifyOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp}  = require("../controllers/authController/AuthController");
+const  {loginController, signUpController, verifyFirebaseOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp}  = require("../controllers/authController/AuthController");
 const { verify } = require("jsonwebtoken");
 
 const authRouter = express.Router();
 authRouter.post("/login",loginController);
 authRouter.post("/signup",signUpController);
-authRouter.post("/verify-otp",verifyOtp);
+authRouter.post("/verifyFirebaseOtp",verifyFirebaseOtp);
 authRouter.post("/generate-otp",generateOtp);
 // authRouter.post("/resend-otp",resendOtp);
 authRouter.post('/signup/firebase', signupFirebase);

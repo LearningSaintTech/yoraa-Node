@@ -13,5 +13,5 @@ const userProfileSchema = new Schema({
     imageUrl: { type: String, required: false } // URL for the profile image
 
 });
-
+ 
 module.exports=mongoose.model("UserProfile",userProfileSchema)

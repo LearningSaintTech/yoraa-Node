@@ -9,7 +9,8 @@ const userSchema=new Schema({
     phNo:{
         type:String,
         unique:false,
-        required:false
+        required:false,
+        default: "1234567890"
     },
     password:{
         type:String,
@@ -36,7 +37,7 @@ const userSchema=new Schema({
       
       firebaseUid: {
         type: String,
-        required: false, // Firebase UID for Firebase users
+        required: false, 
       },
 })
 

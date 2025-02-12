@@ -8,6 +8,7 @@ const { generateOtp } = require("../../utils/generateOtp");
 const UserProfile = require("../../models/UserProfile");
 const { handleFirebaseSignup, loginFirebase } = require('../../services/authService');
 
+const admin = require('../../utils/firebaseConfig'); 
 
 exports.loginController = async (req, res) => {
     try {
@@ -57,11 +58,22 @@ exports.loginController = async (req, res) => {
 exports.signUpController = async (req, res) => {
     console.log("req.body",req.body)
     try {
-        const existingUser = await User.findOne({ phNo: req.body.phNo });
+        console.log("qqqqqqqqqqqqqq00000000000000")
 
-        if (existingUser) {
-            return res.status(400).json(ApiResponse(null, "User already exists", true, 400));
+        const existingUser = await User.findOne({ phNo: req.body.phNo });
+        console.log("qqqqqqqqqqqqq11111111111111")
+
+       if(existingUser){
+        if (existingUser.isVerified==false) {
+            console.log("qqqqqqqqqqqqqq")
+            return res.status(403).json(ApiResponse(null, "User is not verified. Please verify your account first.", false, 403));
         }
+        if (existingUser.isVerified==true) {
+            console.log("qqqqqqqqqqqqqq1111111111111")
+
+            return res.status(403).json(ApiResponse(null, "User is  verified registered. Please login", false, 403));
+        }
+       }
 
         const hashedPassword = await bcrypt.hash(req.body.password, 10);
         req.body.password = hashedPassword;
@@ -240,4 +252,47 @@ exports.signupFirebase = async (req, res) => {
       res.status(400).json({ message: error.message });
     }
   };
+
+
+  exports.verifyFirebaseOtp = async (req, res) => {
+    console.log("111111111111111111")
+    const { idToken, phNo } = req.body;
+    console.log("111111111111111111",req.body)
+
+    try {
+        // Verify the Firebase ID Token
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        console.log("Decoded Firebase Token:", decodedToken);
+
+        if (!decodedToken.phone_number || decodedToken.phone_number !== phNo) {
+            return res.status(400).json(ApiResponse(null, "Phone number mismatch", false, 400));
+        }
+
+        // Check if user exists in DB
+        let phNo1 = phNo.replace('+91', '');
+        console.log("Trimmed phone number (phNo1):", phNo1);
+    
+        // Find the user in the database using the trimmed phone number
+        let user = await User.findOne({ phNo: phNo1 });
+        console.log("User found:", user);
+
+        if (!user) {
+            // If user doesn't exist, create a new one
+            user = new User({ phNo, isVerified: true });
+            await user.save();
+        } else {
+            // If user exists, mark as verified
+            user.isVerified = true;
+            await user.save();
+        }
+
+        // Generate JWT Token
+        const token = await generateToken({ _id: user._id, phNo: user.phNo });
+
+        return res.status(200).json(ApiResponse({ token, user }, "OTP verified successfully", true, 200));
+    } catch (error) {
+        console.error("Error verifying Firebase OTP:", error);
+        return res.status(400).json(ApiResponse(null, error.message, false, 400));
+    }
+};
   
