@@ -7,7 +7,8 @@ const {generateToken} = require("../../utils/generateToken");
 const { generateOtp } = require("../../utils/generateOtp");
 const UserProfile = require("../../models/UserProfile");
 const { handleFirebaseSignup, loginFirebase } = require('../../services/authService');
-
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 const admin = require('../../utils/firebaseConfig'); 
 
 exports.loginController = async (req, res) => {
@@ -112,11 +113,14 @@ exports.signUpController = async (req, res) => {
 
 exports.verifyOtp = async (req, res) => {
 	try {
-		const { phNo, otp } = req.body;
+		const { phNo, otp,email } = req.body;
+console.log("phNo",phNo)
+console.log("email",email)
 
 		const user = await User.findOne({ phNo });
-
-		if (!user) {
+		const useremail = await User.findOne({ email });
+        
+		if (!user && !useremail) {
 			return res.status(404).json(ApiResponse(null, "User not found", false, 404));
 		}
 
@@ -278,11 +282,12 @@ exports.signupFirebase = async (req, res) => {
 
         if (!user) {
             // If user doesn't exist, create a new one
-            user = new User({ phNo, isVerified: true });
+            user = new User({ phNo, isVerified: true,isPhoneVerified:true });
             await user.save();
         } else {
             // If user exists, mark as verified
             user.isVerified = true;
+            user.isPhoneVerified=true;
             await user.save();
         }
 
@@ -296,3 +301,79 @@ exports.signupFirebase = async (req, res) => {
     }
 };
   
+const transporter = nodemailer.createTransport({
+    service: "Gmail",
+    auth: {
+        user: "ashishak063@gmail.com", // Your email
+        pass: "enzwlnfhxkqudqrg", // App password
+    },
+});
+
+exports.sendVerificationEmail = async (req, res) => {
+    try {
+        const { email,phone } = req.body;
+console.log("req.body",req.body)
+        const user = await User.findOne({ phNo:phone });
+        console.log("user",user)
+        if (!user) {
+            return res.status(404).json(ApiResponse(null, "User not found", false, 404));
+        }
+
+        // Generate a verification token
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.emailVerificationToken = otp; // Store OTP in DB
+        user.isEmailVerified = false;
+        user.email = email;
+        user.emailVerificationExpires = Date.now() + 10 * 60 * 1000; // OTP valid for 10 mins
+        await user.save();
+
+        // Construct the verification link
+
+        // Send email
+        const mailOptions = {
+            from: "your-email@gmail.com",
+            to: email,
+            subject: "Your OTP for Email Verification",
+            html: `<p>Your OTP for email verification is:</p>
+                   <h2>${otp}</h2>
+                   <p>This OTP is valid for 10 minutes.</p>`,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        return res.status(200).json(ApiResponse(null, "OTP sent to email", true, 200));
+    } catch (error) {
+        console.error("Error sending verification email:", error);
+        return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
+    }
+};
+exports.verifyEmail = async (req, res) => {
+    try {
+        const { email, otp,phone } = req.body;
+        console.log("req.body",req.body)
+        const user = await User.findOne({ phNo:phone });
+
+        if (!user) {
+            return res.status(404).json(ApiResponse(null, "User not found", false, 404));
+        }
+
+        if (user.emailVerificationToken !== otp) {
+            return res.status(400).json(ApiResponse(null, "Invalid OTP", false, 400));
+        }
+
+        if (user.emailVerificationExpires < Date.now()) {
+            return res.status(400).json(ApiResponse(null, "OTP expired", false, 400));
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationToken = null; // Remove OTP after verification
+       user.email=email;
+        await user.save();
+
+        return res.status(200).json(ApiResponse(null, "Email verified successfully", true, 200));
+    } catch (error) {
+        console.error("Error verifying OTP:", error);
+        return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
+    }
+};
+

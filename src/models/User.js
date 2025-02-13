@@ -20,6 +20,14 @@ const userSchema=new Schema({
         type:Boolean,
         default:false
     },
+    isPhoneVerified:{
+        type:Boolean,
+        default:false
+    },
+    isEmailVerified:{
+        type:Boolean,
+        default:false
+    },
     isAdmin:{
         type:Boolean,
         default:false
@@ -39,6 +47,9 @@ const userSchema=new Schema({
         type: String,
         required: false, 
       },
+      emailVerificationToken:{
+        type: String,
+        required: false,       }
 })
 
 module.exports=mongoose.model("User",userSchema)

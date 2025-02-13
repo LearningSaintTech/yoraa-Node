@@ -23,6 +23,7 @@ exports.handleFirebaseSignup = async (idToken) => {
         email: decodedToken.email,
         firebaseUid: firebaseUid,
         isVerified: true,
+        isEmailVerified:true,
       });
       await firebaseUser.save();
 

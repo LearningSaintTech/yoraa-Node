@@ -95,6 +95,14 @@ console.log("req.body",req.body)
         // Update User model (name, phone number, email)
         const user = await User.findById(userId);
         user.isProfile = true;
+        if(user.isPhoneVerified==false && user.isEmailVerified==true)
+        {
+            user.isPhoneVerified=true;
+        }
+        if(user.isPhoneVerified==true && user.isEmailVerified==false)
+            {
+                user.isEmailVerified=true;
+            }
 
         if (name) user.name = name;  
         console.log("phno",phNo)    // Update name if provided
