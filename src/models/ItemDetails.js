@@ -49,6 +49,13 @@ const itemDetailsSchema = new mongoose.Schema({
       required: false,
     },
   ],
+  dimensions: {
+    length: { type: Number, required: false }, // Length of the item (cm)
+    breadth: { type: Number, required: false }, // Breadth of the item (cm)
+    height: { type: Number, required: false }, // Height of the item (cm)
+    width: { type: Number, required: false }, // Width of the item (cm)
+    weight: { type: Number, required: false }, // Weight of the item (kg)
+  },
   items: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Item", // Reference to the Item model
