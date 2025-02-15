@@ -331,7 +331,7 @@ console.log("req.body",req.body)
 
         // Send email
         const mailOptions = {
-            from: "your-email@gmail.com",
+            from: "ashishak063@gmail.com",
             to: email,
             subject: "Your OTP for Email Verification",
             html: `<p>Your OTP for email verification is:</p>
@@ -377,3 +377,29 @@ exports.verifyEmail = async (req, res) => {
     }
 };
 
+
+exports.resetPassword = async (req, res) => {
+    try {
+        console.log("req.body",req.body)
+        const { phNo, newPassword } = req.body;
+
+        if (!phNo || !newPassword) {
+            return res.status(400).json(ApiResponse(null, "Missing required fields", false, 400));
+        }
+
+        const user = await User.findOne({ phNo }); // Replace findByPhone with findOne
+        if (!user) {
+            return res.status(404).json(ApiResponse(null, "User not found", false, 404));
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        return res.status(200).json(ApiResponse(null, "Password reset successfully", true, 200));
+    } catch (error) {
+        console.error("Error resetting password:", error);
+        return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
+    }
+};
