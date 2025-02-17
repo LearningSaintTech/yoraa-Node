@@ -17,7 +17,7 @@ const razorpayRoutes = require("./src/routes/paymentRoutes"); // Import Razorpay
 const userProfileRoutes = require("./src/routes/UserProfileRoutes"); // Import Razorpay route
 const itemDetailsRoutes = require("./src/routes/ItemDetailsRoutes");
 const orderRoutes = require("./src/routes/OrderRoutes");
-
+const privacyPolicyRoutes=require("./src/routes/PrivacyPolicyRoutes");
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -45,6 +45,7 @@ app.use("/api/address",addressRoutes);
 app.use("/api/razorpay", razorpayRoutes);  // Add Razorpay API route
 app.use("/api/userProfile", userProfileRoutes);
 app.use("/api/orders", orderRoutes);
+app.use('/api/privacyPolicy', privacyPolicyRoutes);
 
 
 
