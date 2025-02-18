@@ -13,15 +13,18 @@ exports.createItem = async (req, res,newItemId) => {
           return res.status(400).json(ApiResponse(null, "Image is required", false, 400));
         }
 
-    const { name, description, price, stock, subCategoryId } = req.body;
-
+        const { data,subCategoryId,imageUrl } = req.body;
+        const itemData = JSON.parse(data);  // Parse the JSON string into an object
+        const {
+          name, description, price, stock, brand, style, occasion, fit, material, discountPrice
+        } = itemData;
     // Validate subcategory existence
     const subCategory = await SubCategory.findById(subCategoryId);
     if (!subCategory) {
     return  res.status(500).json(ApiResponse(null,"SubCategory not found", false, 500));
 
     }
-
+console.log("itemdaa",itemData)
     const newItem = new Item({
       _id:newItemId,
       name,
@@ -29,6 +32,12 @@ exports.createItem = async (req, res,newItemId) => {
       price,
       stock,
       subCategoryId,
+      brand,
+      style,
+      occasion,
+      fit,
+      material,
+      discountPrice,
       imageUrl: req.body.imageUrl ? req.body.imageUrl : null, // Store image URL if present
     });
 
@@ -50,23 +59,36 @@ exports.createItem = async (req, res,newItemId) => {
 exports.getItemsBySubCategory = async (req, res) => {
   try {
     const { subCategoryId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, filters = {} } = req.body;
 
-    const items = await Item.find({ subCategoryId })
+    let filterCriteria = { subCategoryId };
+
+    // Apply filters dynamically if provided
+    if (filters.brand) filterCriteria.brand = { $in: filters.brand };
+    if (filters.style) filterCriteria.style = { $in: filters.style };
+    if (filters.occasion) filterCriteria.occasion = { $in: filters.occasion };
+    if (filters.fit) filterCriteria.fit = { $in: filters.fit };
+    if (filters.material) filterCriteria.material = { $in: filters.material };
+    if (filters.minPrice) filterCriteria.price = { $gte: parseFloat(filters.minPrice) };
+    if (filters.maxPrice) filterCriteria.price = { ...filterCriteria.price, $lte: parseFloat(filters.maxPrice) };
+    if (filters.minRating) filterCriteria.averageRating = { $gte: parseFloat(filters.minRating) };
+
+    const items = await Item.find(filterCriteria)
       .skip((page - 1) * Number(limit))
-      .limit(Number(limit))
+      .limit(Number(limit));
 
-    const totalItems = await Item.countDocuments({ subCategoryId });
+    const totalItems = await Item.countDocuments(filterCriteria);
 
     res.status(200).json(ApiResponse(items, "Items fetched successfully", true, 200, {
       totalPages: Math.ceil(totalItems / limit),
-      currentPage: Number(page)
+      currentPage: Number(page),
     }));
   } catch (err) {
     console.error(err);
     res.status(500).json(ApiResponse(null, "Error fetching items", false, 500, err.message));
   }
 };
+
 
 
 /**
