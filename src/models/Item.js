@@ -7,6 +7,8 @@ const itemSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 }, // Ensure price is non-negative
     stock: { type: Number, required: true, default: 0, min: 0 }, // Ensure stock is non-negative
     subCategoryId: { type: mongoose.Schema.Types.ObjectId, ref: "SubCategory", required: true }, // ✅ Each Item belongs to 1 SubCategory
+    categoryId: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true }, // ✅ Each Item belongs to 1 SubCategory
+
     imageUrl: { type: String }, // ✅ Image URL for item
 
     // ✅ Additional Filtering Fields

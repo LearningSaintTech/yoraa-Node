@@ -7,13 +7,15 @@ const { deleteFileFromS3 } = require("../../utils/S3");
  * Create a new item
  */
 exports.createItem = async (req, res,newItemId) => {
+  console.log(" qqqqqqqqqqqqqq")
   try {
+    console.log(" 111111111111111")
 
      if (!req.body.imageUrl) {
           return res.status(400).json(ApiResponse(null, "Image is required", false, 400));
         }
 
-        const { data,subCategoryId,imageUrl } = req.body;
+        const { data,subCategoryId,imageUrl,categoryId } = req.body;
         const itemData = JSON.parse(data);  // Parse the JSON string into an object
         const {
           name, description, price, stock, brand, style, occasion, fit, material, discountPrice
@@ -38,6 +40,7 @@ console.log("itemdaa",itemData)
       fit,
       material,
       discountPrice,
+      categoryId,
       imageUrl: req.body.imageUrl ? req.body.imageUrl : null, // Store image URL if present
     });
 
@@ -89,6 +92,47 @@ exports.getItemsBySubCategory = async (req, res) => {
   }
 };
 
+exports.getItemsByFilter = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, filters = {}, searchText = "" } = req.body;
+    
+    let filterCriteria = {};
+
+    // Apply filters dynamically if provided
+    if (filters.categoryId) filterCriteria.categoryId = filters.categoryId;
+    if (filters.subCategoryId) filterCriteria.subCategoryId = filters.subCategoryId;
+    if (filters.brand) filterCriteria.brand = { $in: filters.brand };
+    if (filters.style) filterCriteria.style = { $in: filters.style };
+    if (filters.occasion) filterCriteria.occasion = { $in: filters.occasion };
+    if (filters.fit) filterCriteria.fit = { $in: filters.fit };
+    if (filters.material) filterCriteria.material = { $in: filters.material };
+    if (filters.minPrice) filterCriteria.price = { $gte: parseFloat(filters.minPrice) };
+    if (filters.maxPrice) filterCriteria.price = { ...filterCriteria.price, $lte: parseFloat(filters.maxPrice) };
+    if (filters.minRating) filterCriteria.averageRating = { $gte: parseFloat(filters.minRating) };
+    
+    // Search based on text
+    if (searchText) {
+      filterCriteria.$or = [
+        { name: { $regex: searchText, $options: "i" } },
+        { description: { $regex: searchText, $options: "i" } }
+      ];
+    }
+
+    const items = await Item.find(filterCriteria)
+      .skip((page - 1) * Number(limit))
+      .limit(Number(limit));
+
+    const totalItems = await Item.countDocuments(filterCriteria);
+
+    res.status(200).json(ApiResponse(items, "Items fetched successfully", true, 200, {
+      totalPages: Math.ceil(totalItems / limit),
+      currentPage: Number(page),
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiResponse(null, "Error fetching items", false, 500, err.message));
+  }
+};
 
 
 /**
