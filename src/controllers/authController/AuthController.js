@@ -227,6 +227,7 @@ exports.logout = async (req, res) => {
 
 
 exports.signupFirebase = async (req, res) => {
+    console.log("qqqqqqqqqqqqqqqqqqqqqqqqqqqq")
     const { idToken } = req.body;
     console.log("Firebase signup received with ID token:", idToken);
   

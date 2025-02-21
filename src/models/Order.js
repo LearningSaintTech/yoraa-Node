@@ -16,6 +16,8 @@ const OrderSchema = new mongoose.Schema({
   razorpay_signature: { type: String, sparse: true },
   shipping_status: { type: String, enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"], default: "Pending" },
   shiprocket_shipment_id: { type: String, sparse: true },
+  shiprocket_orderId: { type: Number, sparse: true },
+
   tracking_url: { type: String, sparse: true },
   item_quantities: [
     {

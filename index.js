@@ -18,6 +18,8 @@ const userProfileRoutes = require("./src/routes/UserProfileRoutes"); // Import R
 const itemDetailsRoutes = require("./src/routes/ItemDetailsRoutes");
 const orderRoutes = require("./src/routes/OrderRoutes");
 const privacyPolicyRoutes=require("./src/routes/PrivacyPolicyRoutes");
+const notificationRoutes=require("./src/routes/NotificationRoutes");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -46,6 +48,7 @@ app.use("/api/razorpay", razorpayRoutes);  // Add Razorpay API route
 app.use("/api/userProfile", userProfileRoutes);
 app.use("/api/orders", orderRoutes);
 app.use('/api/privacyPolicy', privacyPolicyRoutes);
+app.use('/api', (notificationRoutes));
 
 
 

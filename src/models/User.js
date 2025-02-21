@@ -47,6 +47,8 @@ const userSchema=new Schema({
         type: String,
         required: false, 
       },
+      fcmToken: { type: String, unique: false },
+
       emailVerificationToken:{
         type: String,
         required: false,       }

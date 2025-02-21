@@ -9,13 +9,15 @@ const {ApiResponse} = require("../utils/ApiResponse");
 
 // Firebase signup logic
 exports.handleFirebaseSignup = async (idToken) => {
+  console.log("handleFirebaseSignup")
   try {
     // Verify the Firebase ID token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const firebaseUid = decodedToken.uid;
-
+        console.log("firebaseUid",firebaseUid)
     // Check if the user already exists in the database
     let firebaseUser = await User.findOne({ firebaseUid });
+    console.log("firebaseUser",firebaseUser)
 
     if (!firebaseUser) {
       // Create a new user if not found
@@ -41,6 +43,8 @@ exports.handleFirebaseSignup = async (idToken) => {
       process.env.SECRET_KEY,
       { expiresIn: '1h' }
     );
+    console.log("token",token)
+
     const decodedToken1 = jwt.decode(token);
     console.log("Decoded inside auth services  token payload:", decodedToken1);
     

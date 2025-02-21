@@ -284,6 +284,7 @@ const shiprocketResponse = await fetch(`${SHIPROCKET_API_BASE}/orders/create/adh
 // After successfully creating the Shiprocket order
 if (shiprocketData.status_code === 1) {
   order.shiprocket_shipment_id = shiprocketData.shipment_id;
+  order.shiprocket_orderId=shiprocketData.order_id;
   await order.save();
   console.log("9999999999999999");
   // 🔹 Generate AWB Shipment ID
