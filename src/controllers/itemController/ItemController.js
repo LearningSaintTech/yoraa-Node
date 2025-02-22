@@ -93,7 +93,10 @@ exports.getItemsBySubCategory = async (req, res) => {
 };
 
 exports.getItemsByFilter = async (req, res) => {
+  console.log("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
+
   try {
+    console.log("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
     const { page = 1, limit = 10, filters = {}, searchText = "" } = req.body;
     
     let filterCriteria = {};

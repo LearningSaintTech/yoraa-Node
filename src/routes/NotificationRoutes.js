@@ -1,6 +1,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const User = require('../models/User');
+const { verifyToken } = require("../middleware/VerifyToken");
 
 const router = express.Router();
 
@@ -8,9 +9,10 @@ const router = express.Router();
  * @route   POST /api/save-token
  * @desc    Save or update user FCM token
  */
-router.post('/save-token', async (req, res) => {
-    const { userId, token } = req.body;
-    
+router.post('/save-token',verifyToken, async (req, res) => {
+    const { token } = req.body;
+    const userId = req.user._id;
+
     if (!userId || !token) {
         return res.status(400).json({ message: 'User ID and FCM Token are required' });
     }

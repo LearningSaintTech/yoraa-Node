@@ -49,7 +49,7 @@ itemRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (r
 
 // Get all items
 itemRouter.get("/", itemController.getAllItems);
-itemRouter.get("/filter", itemController.getItemsByFilter);
+itemRouter.post("/filter", itemController.getItemsByFilter);
 
 // Get a single item by ID
 itemRouter.get("/:id", itemController.getItemById);
