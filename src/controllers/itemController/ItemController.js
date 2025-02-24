@@ -92,18 +92,60 @@ exports.getItemsBySubCategory = async (req, res) => {
   }
 };
 
+const mongoose = require("mongoose");
+
 exports.getItemsByFilter = async (req, res) => {
-  console.log("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
+  console.log("Fetching items with filters...");
 
   try {
-    console.log("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
     const { page = 1, limit = 10, filters = {}, searchText = "" } = req.body;
-    
+    console.log("Request Filters:", JSON.stringify(filters, null, 2));
+
     let filterCriteria = {};
 
-    // Apply filters dynamically if provided
-    if (filters.categoryId) filterCriteria.categoryId = filters.categoryId;
-    if (filters.subCategoryId) filterCriteria.subCategoryId = filters.subCategoryId;
+    // Convert ID strings to ObjectId
+    const toObjectId = (id) => mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
+
+    let categoryIds = null;
+    let subCategoryIds = null;
+
+    // Handle multiple categoryIds
+    if (filters.categoryId) {
+      categoryIds = Array.isArray(filters.categoryId) ? filters.categoryId : [filters.categoryId];
+      categoryIds = categoryIds.map(toObjectId).filter(id => id);
+      filterCriteria.categoryId = { $in: categoryIds };
+    }
+
+    console.log("Parsed Category IDs:", categoryIds);
+
+    // Handle multiple subCategoryIds (filter only if category is selected)
+    if (filters.subCategoryId) {
+      subCategoryIds = Array.isArray(filters.subCategoryId) ? filters.subCategoryId : [filters.subCategoryId];
+      subCategoryIds = subCategoryIds.map(toObjectId).filter(id => id);
+
+      console.log("Parsed SubCategory IDs:", subCategoryIds);
+
+      if (categoryIds.length > 0) {
+        // Fetch only the subcategories that belong to the selected categories
+        const validSubCategories = await SubCategory.find({ categoryId: { $in: categoryIds } }).distinct("_id");
+
+        console.log("Valid SubCategories based on Category IDs:", validSubCategories);
+
+        // Filter out invalid subcategories
+        const filteredSubCategories = subCategoryIds.filter(id => validSubCategories.some(validId => validId.equals(id)));
+
+        console.log("Filtered SubCategory IDs:", filteredSubCategories);
+
+        if (filteredSubCategories.length > 0) {
+          filterCriteria.subCategoryId = { $in: filteredSubCategories };
+        } else {
+          console.log("No valid subcategories found matching the given category.");
+        }
+      } else {
+        filterCriteria.subCategoryId = { $in: subCategoryIds };
+      }
+    }
+
     if (filters.brand) filterCriteria.brand = { $in: filters.brand };
     if (filters.style) filterCriteria.style = { $in: filters.style };
     if (filters.occasion) filterCriteria.occasion = { $in: filters.occasion };
@@ -112,7 +154,7 @@ exports.getItemsByFilter = async (req, res) => {
     if (filters.minPrice) filterCriteria.price = { $gte: parseFloat(filters.minPrice) };
     if (filters.maxPrice) filterCriteria.price = { ...filterCriteria.price, $lte: parseFloat(filters.maxPrice) };
     if (filters.minRating) filterCriteria.averageRating = { $gte: parseFloat(filters.minRating) };
-    
+
     // Search based on text
     if (searchText) {
       filterCriteria.$or = [
@@ -121,21 +163,44 @@ exports.getItemsByFilter = async (req, res) => {
       ];
     }
 
+    console.log("Final Filter Criteria:", JSON.stringify(filterCriteria, null, 2));
+
     const items = await Item.find(filterCriteria)
       .skip((page - 1) * Number(limit))
       .limit(Number(limit));
 
-    const totalItems = await Item.countDocuments(filterCriteria);
+    console.log("Fetched Items Count:", items.length);
 
-    res.status(200).json(ApiResponse(items, "Items fetched successfully", true, 200, {
-      totalPages: Math.ceil(totalItems / limit),
-      currentPage: Number(page),
-    }));
+    const totalItems = await Item.countDocuments(filterCriteria);
+    console.log("Total Matching Items:", totalItems);
+
+    // ✅ Formatted Response
+    const response = {
+      success: true,
+      message: "Items fetched successfully",
+      statusCode: 200,
+      data: items,
+      pagination: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: Number(page),
+        pageSize: Number(limit),
+      },
+    };
+
+    res.status(200).json(response);
   } catch (err) {
-    console.error(err);
-    res.status(500).json(ApiResponse(null, "Error fetching items", false, 500, err.message));
+    console.error("Error fetching items:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching items",
+      statusCode: 500,
+      error: err.message,
+    });
   }
 };
+
+
 
 
 /**

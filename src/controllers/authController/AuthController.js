@@ -404,3 +404,25 @@ exports.resetPassword = async (req, res) => {
         return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
     }
 };
+
+exports.deleteUser = async (req, res) => {
+    try {
+
+        const userId = req.user._id;
+console.log("qqqqqqqqqqq",userId)
+        // Find the user
+        const user = await User.findOne({ _id:userId });
+        if (!user) {
+            return res.status(404).json(ApiResponse(null, "User not found", false, 404));
+        }
+
+        // Delete the user
+        console.log("user",user)
+        await User.deleteOne({ _id:userId });
+
+        return res.status(200).json(ApiResponse(null, "User deleted successfully", true, 200));
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
+    }
+};

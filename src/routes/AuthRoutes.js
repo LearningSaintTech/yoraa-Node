@@ -1,6 +1,7 @@
 const express = require("express");
-const  {loginController, signUpController,resetPassword,sendVerificationEmail,verifyEmail, verifyFirebaseOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp}  = require("../controllers/authController/AuthController");
+const  {loginController, signUpController,resetPassword,deleteUser,sendVerificationEmail,verifyEmail, verifyFirebaseOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp}  = require("../controllers/authController/AuthController");
 const { verify } = require("jsonwebtoken");
+const { verifyToken } = require("../middleware/VerifyToken");
 
 const authRouter = express.Router();
 authRouter.post("/login",loginController);
@@ -13,6 +14,8 @@ authRouter.post('/login/firebase', loginFirebase);
 authRouter.post('/sendVerificationEmail',sendVerificationEmail);
 authRouter.post('/verifyEmail',verifyEmail)
 authRouter.post('/resetPassword',resetPassword)
+authRouter.delete('/deleteUser',verifyToken,deleteUser)
+
 
 authRouter.get("/logout",logout);
 module.exports = authRouter;
