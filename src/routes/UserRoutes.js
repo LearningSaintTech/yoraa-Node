@@ -6,5 +6,7 @@ const router=express.Router()
 router
     .get("/getUser",verifyToken, userController.getById)
     .patch("/:id",userController.updateById)
+    .get("/getAlluser",verifyToken, userController.getAllUsers)
+
 
 module.exports=router

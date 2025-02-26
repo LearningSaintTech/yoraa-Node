@@ -15,7 +15,10 @@ router.post(
 );
 router.get("/", itemDetailsController.getAllItemDetails);
 router.get("/:itemId", itemDetailsController.getItemDetailsByItemId);
-router.put("/:id", itemDetailsController.updateItemDetails);
+// router.put("/:id", itemDetailsController.updateItemDetails);
+router.put("/:itemId", upload.array("images", 5), itemDetailsController.updateItemDetails);
+
 router.delete("/:id", itemDetailsController.deleteItemDetails);
+router.post("/item-details/:itemId/delete-image", itemDetailsController.deleteImageFromItemDetails);
 
 module.exports = router;

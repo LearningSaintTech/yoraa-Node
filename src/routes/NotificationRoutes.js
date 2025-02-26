@@ -2,7 +2,7 @@ const express = require('express');
 const admin = require('firebase-admin');
 const User = require('../models/User');
 const { verifyToken } = require("../middleware/VerifyToken");
-
+const Notifications = require("../models/Notifications");
 const router = express.Router();
 
 /**
@@ -40,7 +40,7 @@ router.post('/save-token',verifyToken, async (req, res) => {
  * @route   POST /api/send-notification
  * @desc    Send notification to all users
  */
-router.post('/send-notification', async (req, res) => {
+router.post('/send-notification',verifyToken, async (req, res) => {
     const { title, body } = req.body;
 
     if (!title || !body) {
@@ -61,6 +61,8 @@ router.post('/send-notification', async (req, res) => {
         };
 
         // ✅ Use `sendEachForMulticast`
+        const newNotification = new Notifications({ title, body });
+        await newNotification.save();
         const response = await admin.messaging().sendEachForMulticast(message);
         console.log("response",response)
         res.status(200).json({ 
@@ -113,6 +115,14 @@ router.post('/delete-token', async (req, res) => {
         }
 
         res.status(200).json({ success: true, message: 'Logged out successfully', user });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+router.get('/notifications',verifyToken, async (req, res) => {
+    try {
+        const notifications = await Notifications.find().sort({ sentAt: -1 }); // Show latest first
+        res.status(200).json({ success: true, notifications });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

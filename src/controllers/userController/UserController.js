@@ -1,4 +1,6 @@
 const User=require("../../models/User")
+const UserProfile = require("../../models/UserProfile")
+const UsersProfile=require("../../models/UserProfile")
 
 exports.getById=async(req,res)=>{
     try {
@@ -26,3 +28,13 @@ exports.updateById=async(req,res)=>{
         res.status(500).json({message:'Error getting your details, please try again later'})
     }
 }
+
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await UserProfile.find({}, { password: 0 }).populate('user'); // Assuming 'user' is the correct field
+        res.status(200).json(users);
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ message: "Error fetching users, please try again later" });
+    }
+};

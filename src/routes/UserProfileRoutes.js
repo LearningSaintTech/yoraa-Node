@@ -9,4 +9,6 @@ const upload = multer({ storage });
 router.get("/getProfile",verifyToken, userProfileController.getUserProfile);
 router.post("/postProfile", verifyToken, upload.single("image"), userProfileController.createUserProfile);
 router.put("/updateProfile", verifyToken, upload.single("image"), userProfileController.updateUserProfile);
+router.get("/getProfileByUserId/:userId",verifyToken,userProfileController.getUserProfileById );
+
 module.exports = router;

@@ -17,6 +17,9 @@ const upload = multer({ storage });
 // Create a new category with image upload
 CategoryRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
   try {
+    console.log("req.file",req.file)
+    console.log("req.body",req.body)
+
     if (!req.file) {
       // Return early if no file is uploaded
       return res.status(400).json(ApiResponse(null, "No file uploaded", false, 400));

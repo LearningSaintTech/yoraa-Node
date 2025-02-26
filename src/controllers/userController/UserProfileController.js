@@ -126,3 +126,20 @@ console.log("req.body",req.body)
     }
 };
 
+
+exports.getUserProfileById = async (req, res) => {
+    const { userId } = req.params;
+
+    try {
+        // Find the user profile by user ID and populate user details
+        const userProfile = await UserProfile.findOne({ user: userId }).populate("user");
+
+        if (!userProfile) {
+            return res.status(404).json({ message: "User Profile not found" });
+        }
+
+        res.json(userProfile);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
