@@ -248,6 +248,11 @@ exports.getItemById = async (req, res) => {
 exports.updateItem = async (req, res) => {
   try {
     const { name, description, price, stock, subCategoryId } = req.body;
+console.log("name",name)
+console.log("name",description)
+console.log("name",price)
+console.log("name",stock)
+console.log("name",subCategoryId)
 
     if (subCategoryId) {
       const subCategory = await SubCategory.findById(subCategoryId);

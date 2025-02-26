@@ -17,13 +17,18 @@ const upload = multer({ storage });
 
 // Create a new item with image upload
 itemRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (req, res) => {
+  console.log("qqqqqqqqqqqqqq")
   try {
     if (!req.file) {
       return res.status(400).json(ApiResponse(null, "No file uploaded", false, 400));
     }
 
+    console.log("qqqqqqqqqqqqqq11111111111",req.body)
+
     const existingSubCategory = await SubCategory.findOne({_id:req.body.subCategoryId});
     const categoryId = existingSubCategory.categoryId;
+    console.log("qqq2222",categoryId)
+
       const existingItems = await Item.findOne({ name: req.body.name });
       if (existingItems) {
         // Return early if the category name is already taken
