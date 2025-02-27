@@ -51,6 +51,7 @@ itemRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), async (r
     res.status(500).json(ApiResponse(null, "Item creation failed", false, 500, error.message));
   }
 });
+itemRouter.get("/totalItemCount",verifyToken, itemController.getTotalItemCount); // Using GET since no request body is needed
 
 // Get all items
 itemRouter.get("/", itemController.getAllItems);

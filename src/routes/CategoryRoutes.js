@@ -50,6 +50,7 @@ CategoryRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), asyn
     }
   }
 });
+CategoryRouter.get("/totalCountCategories",verifyToken, categoryController.getTotalCategories);
 
 // Get all categories
 CategoryRouter.get("/", categoryController.getAllCategories);
@@ -88,5 +89,6 @@ CategoryRouter.put("/:id",verifyToken,checkAdminRole, upload.single("image"), as
 
 // Delete a category
 CategoryRouter.delete("/:id",verifyToken,checkAdminRole, categoryController.deleteCategory);
+CategoryRouter.get("/totalCountCategories",verifyToken, categoryController.getTotalCategories);
 
 module.exports = CategoryRouter;

@@ -52,6 +52,7 @@ SubCategoryRouter.post("/",verifyToken,checkAdminRole, upload.single("image"), a
   }
 });
 
+SubCategoryRouter.get("/totalSubcategories",verifyToken, subCategoryController.getTotalSubCategories);
 
 // Get all subcategories
 SubCategoryRouter.get("/", subCategoryController.getAllSubCategories);

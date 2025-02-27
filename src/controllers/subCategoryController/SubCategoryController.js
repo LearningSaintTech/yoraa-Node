@@ -115,3 +115,13 @@ exports.deleteSubCategory = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+// Get total subcategory count
+exports.getTotalSubCategories = async (req, res) => {
+  try {
+    const count = await SubCategory.countDocuments();
+    res.status(200).json(ApiResponse({ totalSubCategories: count }, "Total subcategories count fetched successfully", true, 200));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiResponse(null, err.message, false, 500));
+  }
+};

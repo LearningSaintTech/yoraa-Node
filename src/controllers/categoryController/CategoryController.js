@@ -88,3 +88,15 @@ exports.deleteCategory = async (req, res) => {
     res.status(500).json(ApiResponse(null, err.message, false, 500));
   }
 };
+
+// Get total category count
+exports.getTotalCategories = async (req, res) => {
+  console.log("qqqqqqqqqqq")
+  try {
+    const count = await Category.countDocuments();
+    res.status(200).json(ApiResponse({ totalCategories: count }, "Total categories count fetched successfully", true, 200));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiResponse(null, err.message, false, 500));
+  }
+};

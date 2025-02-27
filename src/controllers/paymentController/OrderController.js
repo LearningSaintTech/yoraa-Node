@@ -3,17 +3,17 @@ const axios = require("axios");
 const Razorpay = require("razorpay");
 
 const SHIPROCKET_API_BASE = "https://apiv2.shiprocket.in/v1/external";
-const SHIPROCKET_EMAIL = "hraj6398@gmail.com"; // Replace with actual credentials
+const SHIPROCKET_EMAIL = "hraj6398@gmail.com"; 
 const SHIPROCKET_PASSWORD = "cxzytrewq@1Q";
 
 
 const razorpay = new Razorpay({
-  key_id: "rzp_live_VRU7ggfYLI7DWV", // Replace with your Razorpay Key ID
-  key_secret: "giunOIOED3FhjWxW2dZ2peNe", // Replace with your Razorpay Key Secret
+  key_id: "rzp_live_VRU7ggfYLI7DWV", 
+  key_secret: "giunOIOED3FhjWxW2dZ2peNe", 
 });
 exports.getOrdersByUser = async (req, res) => {
   try {
-    const userId = req.user._id; // Extract userId from request object
+    const userId = req.user._id; 
     const page = parseInt(req.query.page) || 1; // Default page is 1
     const limit = parseInt(req.query.limit) || 10; // Default limit is 10 orders per page
     const skip = (page - 1) * limit; // Calculate the number of documents to skip
@@ -156,3 +156,30 @@ exports.cancelOrder = async (req, res) => {
     return res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
+
+
+
+exports.getAllOrdersSorted = async (req, res) => {
+  try {
+    // Fetch all orders sorted by timestamp (latest first)
+    const orders = await Order.find({})
+      .populate("user", "firstName lastName email phoneNumber")
+      .populate("items", "name price image description")
+      .populate("item_quantities.item_id", "name price image")
+      .sort({ created_at: -1 }); // Sort by newest first
+
+    if (!orders.length) {
+      return res.status(404).json({ success: false, message: "No orders found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      totalOrders: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("Error fetching sorted orders:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
+

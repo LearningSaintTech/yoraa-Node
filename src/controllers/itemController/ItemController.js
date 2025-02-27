@@ -333,3 +333,15 @@ exports.getLatestItemsBySubCategory = async (req, res) => {
   }
 };
 
+
+
+exports.getTotalItemCount = async (req, res) => {
+  try {
+    const totalItems = await Item.countDocuments(); // Get total count without filters
+
+    res.status(200).json(ApiResponse({ totalItems }, "Total item count fetched successfully", true, 200));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiResponse(null, "Error fetching total item count", false, 500, err.message));
+  }
+};

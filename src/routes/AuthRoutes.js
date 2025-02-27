@@ -1,5 +1,5 @@
 const express = require("express");
-const  {loginController, signUpController,resetPassword,deleteUser,sendVerificationEmail,verifyEmail, verifyFirebaseOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp}  = require("../controllers/authController/AuthController");
+const  {loginController, signUpController,resetPassword,deleteUser,sendVerificationEmail,verifyEmail, verifyFirebaseOtp,signupFirebase,loginFirebase, logout,resendOtp,generateOtp,getTotalUserCount}  = require("../controllers/authController/AuthController");
 const { verify } = require("jsonwebtoken");
 const { verifyToken } = require("../middleware/VerifyToken");
 
@@ -15,6 +15,7 @@ authRouter.post('/sendVerificationEmail',sendVerificationEmail);
 authRouter.post('/verifyEmail',verifyEmail)
 authRouter.post('/resetPassword',resetPassword)
 authRouter.delete('/deleteUser',verifyToken,deleteUser)
+authRouter.get('/totalUsersCount',verifyToken,getTotalUserCount)
 
 
 authRouter.get("/logout",logout);

@@ -426,3 +426,13 @@ console.log("qqqqqqqqqqq",userId)
         return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
     }
 };
+
+exports.getTotalUserCount = async (req, res) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        return res.status(200).json(ApiResponse({ totalUsers }, "Total user count fetched successfully", true, 200));
+    } catch (error) {
+        console.error("Error fetching total user count:", error);
+        return res.status(500).json(ApiResponse(null, "Internal server error", false, 500));
+    }
+};
