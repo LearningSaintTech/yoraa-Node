@@ -1,8 +1,7 @@
 const ItemDetails = require("../../models/ItemDetails");
 const Item = require("../../models/Item");
-const { uploadMultipart } = require("../../utils/S3");
+const { uploadMultipart, deleteFileFromS3 } = require("../../utils/S3");
 const SubCategory = require("../../models/SubCategory");
-const { deleteFileFromS3 } = require("../../utils/S3");
 
 // ✅ CREATE ItemDetails
 exports.createItemDetails = async (req, res) => {
@@ -33,27 +32,42 @@ exports.createItemDetails = async (req, res) => {
       itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : [];
     }
 
-    const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
-    const categoryId = existingSubCategory.categoryId;
-    const existingItems = await Item.findOne({ name: req.body.name });
-    if (existingItems) {
-      return res.status(400).json({ error: "Items name already exists" });
+    // Ensure sizes is an array if provided
+    if (itemDetailsData.sizes && !Array.isArray(itemDetailsData.sizes)) {
+      itemDetailsData.sizes = [itemDetailsData.sizes];
     }
 
-    // Upload images to S3 if provided
+    const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
+    const categoryId = existingSubCategory.categoryId;
+
+    // Upload general images to S3 if provided
     let imageUrls = [];
-    if (req.files && req.files.length > 0) {
-      const uploadPromises = req.files.map((file) =>
+    if (req.files && req.files.images && req.files.images.length > 0) {
+      const uploadPromises = req.files.images.map((file) =>
         uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/details`)
       );
       imageUrls = await Promise.all(uploadPromises);
     }
+
+    // Upload specific size chart images to S3
+    const sizeChartInch = req.files && req.files.sizeChartInch
+      ? await uploadMultipart(req.files.sizeChartInch[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartInch`)
+      : null;
+    const sizeChartCm = req.files && req.files.sizeChartCm
+      ? await uploadMultipart(req.files.sizeChartCm[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartCm`)
+      : null;
+    const sizeMeasurement = req.files && req.files.sizeMeasurement
+      ? await uploadMultipart(req.files.sizeMeasurement[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeMeasurement`)
+      : null;
 
     // Create new ItemDetails with parsed JSON + images
     const newItemDetails = new ItemDetails({
       ...itemDetailsData,
       items: itemId,
       images: imageUrls,
+      sizeChartInch,
+      sizeChartCm,
+      sizeMeasurement,
     });
 
     // Save to DB
@@ -77,7 +91,7 @@ exports.getAllItemDetails = async (req, res) => {
   }
 };
 
-// ✅ READ SINGLE ItemDetails BY ID
+// ✅ READ SINGLE ItemDetails BY ITEM ID
 exports.getItemDetailsByItemId = async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -91,7 +105,7 @@ exports.getItemDetailsByItemId = async (req, res) => {
   }
 };
 
-
+// ✅ UPDATE ItemDetails
 exports.updateItemDetails = async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -121,39 +135,59 @@ exports.updateItemDetails = async (req, res) => {
       }
     }
 
-    // Ensure fitDetails is always an array
+    // Ensure fitDetails and sizes are arrays
     if (!Array.isArray(itemDetailsData.fitDetails)) {
-      itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : [];
+      itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : existingDetails.fitDetails;
+    }
+    if (itemDetailsData.sizes && !Array.isArray(itemDetailsData.sizes)) {
+      itemDetailsData.sizes = [itemDetailsData.sizes];
     }
 
     const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
     const categoryId = existingSubCategory.categoryId;
 
-    // Image handling: Replace existing images if new ones are uploaded
+    // Handle general images
     let imageUrls = existingDetails.images || [];
-
-    if (req.files && req.files.length > 0) {
+    if (req.files && req.files.images && req.files.images.length > 0) {
       console.log("New images uploaded, deleting old images...");
-
-      // Delete existing images from S3 before uploading new ones
       if (imageUrls.length > 0) {
         await deleteFileFromS3(imageUrls);
       }
-
-      // Upload new images
-      const uploadPromises = req.files.map((file) =>
+      const uploadPromises = req.files.images.map((file) =>
         uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/details`)
       );
       imageUrls = await Promise.all(uploadPromises);
     }
 
-    // Update ItemDetails with parsed JSON + new images
+    // Handle specific size chart images
+    let sizeChartInch = existingDetails.sizeChartInch;
+    if (req.files && req.files.sizeChartInch) {
+      if (sizeChartInch) await deleteFileFromS3([sizeChartInch]);
+      sizeChartInch = await uploadMultipart(req.files.sizeChartInch[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartInch`);
+    }
+
+    let sizeChartCm = existingDetails.sizeChartCm;
+    if (req.files && req.files.sizeChartCm) {
+      if (sizeChartCm) await deleteFileFromS3([sizeChartCm]);
+      sizeChartCm = await uploadMultipart(req.files.sizeChartCm[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartCm`);
+    }
+
+    let sizeMeasurement = existingDetails.sizeMeasurement;
+    if (req.files && req.files.sizeMeasurement) {
+      if (sizeMeasurement) await deleteFileFromS3([sizeMeasurement]);
+      sizeMeasurement = await uploadMultipart(req.files.sizeMeasurement[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeMeasurement`);
+    }
+
+    // Update ItemDetails
     const updatedDetails = await ItemDetails.findOneAndUpdate(
       { items: itemId },
       {
         ...itemDetailsData,
         items: itemId,
-        images: imageUrls, // Store new image URLs after replacement
+        images: imageUrls,
+        sizeChartInch,
+        sizeChartCm,
+        sizeMeasurement,
       },
       { new: true }
     ).populate("items");
@@ -166,28 +200,34 @@ exports.updateItemDetails = async (req, res) => {
   }
 };
 
-
 // ✅ DELETE ItemDetails with S3 Image Cleanup
 exports.deleteItemDetails = async (req, res) => {
-  console.log("deleteItemDetails")
+  console.log("deleteItemDetails");
   try {
     const { id } = req.params;
-console.log("id",id)
+    console.log("id", id);
+
     // Find the item details
     const itemDetails = await ItemDetails.findById(id);
     if (!itemDetails) {
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    // Delete images from S3 (assuming deleteS3Objects exists)
-    if (itemDetails.images && itemDetails.images.length > 0) {
-      await deleteFileFromS3(itemDetails.images);
+    // Delete all images from S3
+    const allImages = [
+      ...itemDetails.images,
+      itemDetails.sizeChartInch,
+      itemDetails.sizeChartCm,
+      itemDetails.sizeMeasurement,
+    ].filter(Boolean); // Filter out null/undefined values
+    if (allImages.length > 0) {
+      await deleteFileFromS3(allImages);
     }
 
     // Remove ItemDetails from DB
     await ItemDetails.findByIdAndDelete(id);
 
-    // Update related Item to reflect deletion
+    // Update related Item
     await Item.findByIdAndUpdate(itemDetails.items, { isItemDetail: false });
 
     res.status(200).json({ message: "Item Details deleted successfully" });
@@ -196,13 +236,14 @@ console.log("id",id)
   }
 };
 
+// ✅ DELETE Specific Image from ItemDetails
 exports.deleteImageFromItemDetails = async (req, res) => {
-  console.log("qqqqqqqqqqqqqqq")
+  console.log("deleteImageFromItemDetails");
   try {
     const { itemId } = req.params;
     const { imageUrl } = req.body;
-console.log("itemId",itemId)
-console.log("imageUrl",imageUrl)
+    console.log("itemId", itemId);
+    console.log("imageUrl", imageUrl);
 
     if (!imageUrl) {
       return res.status(400).json({ error: "Image URL is required" });
@@ -214,23 +255,31 @@ console.log("imageUrl",imageUrl)
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    // Check if the image exists in the current images list
-    if (!itemDetails.images.includes(imageUrl)) {
+    // Handle deletion from general images array
+    if (itemDetails.images.includes(imageUrl)) {
+      await deleteFileFromS3([imageUrl]);
+      itemDetails.images = itemDetails.images.filter((img) => img !== imageUrl);
+    }
+    // Handle deletion of specific size chart images
+    else if (itemDetails.sizeChartInch === imageUrl) {
+      await deleteFileFromS3([imageUrl]);
+      itemDetails.sizeChartInch = null;
+    }
+    else if (itemDetails.sizeChartCm === imageUrl) {
+      await deleteFileFromS3([imageUrl]);
+      itemDetails.sizeChartCm = null;
+    }
+    else if (itemDetails.sizeMeasurement === imageUrl) {
+      await deleteFileFromS3([imageUrl]);
+      itemDetails.sizeMeasurement = null;
+    }
+    else {
       return res.status(404).json({ error: "Image not found in Item Details" });
     }
 
-    // Delete the image from S3
-    await deleteFileFromS3(imageUrl);
-
-    // Remove the image from the database
-    const updatedImages = itemDetails.images.filter((img) => img !== imageUrl);
-    itemDetails.images = updatedImages;
     await itemDetails.save();
-    
-    console.log("Updated ItemDetails Images:", itemDetails.images);
-    
-    res.status(200).json({ message: "Image deleted successfully", updatedImages });
-    
+    console.log("Updated ItemDetails Images:", itemDetails);
+    res.status(200).json({ message: "Image deleted successfully", updatedDetails: itemDetails });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

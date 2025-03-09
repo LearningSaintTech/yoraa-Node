@@ -20,6 +20,13 @@ const itemDetailsSchema = new mongoose.Schema({
     modelMeasurements: { type: String, required: false }, // Example: "Chest-39, Waist-32, Hips-38"
     modelWearingSize: { type: String, required: false }, // Example: "Size M"
   },
+  // New field for sizes and their stock
+  sizes: [
+    {
+      size: { type: String, required: true }, // Example: "S", "M", "L", "XL"
+      stock: { type: Number, required: true, min: 0 }, // Stock quantity for this size
+    },
+  ],
   manufacturerDetails: {
     name: { type: String, required: true }, // Example: "Radhamani Textiles Private Limited"
     address: { type: String, required: true }, // Manufacturer address
@@ -45,10 +52,23 @@ const itemDetailsSchema = new mongoose.Schema({
   },
   images: [
     {
-      type: String, // Array of image URLs
+      type: String, // Array of general image URLs
       required: false,
     },
   ],
+  // New fields for specific size-related images
+  sizeChartInch: {
+    type: String, // URL for size chart in inches
+    required: false,
+  },
+  sizeChartCm: {
+    type: String, // URL for size chart in centimeters
+    required: false,
+  },
+  sizeMeasurement: {
+    type: String, // URL for size measurement image
+    required: false,
+  },
   dimensions: {
     length: { type: Number, required: false }, // Length of the item (cm)
     breadth: { type: Number, required: false }, // Breadth of the item (cm)

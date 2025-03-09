@@ -1,24 +1,40 @@
 const express = require("express");
 const router = express.Router();
 const itemDetailsController = require("../controllers/itemController/ItemDetailsController");
-// Define CRUD routes
 const multer = require("multer");
 
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: storage }).fields([
+  { name: "images", maxCount: 5 }, // General images (up to 5)
+  { name: "sizeChartInch", maxCount: 1 }, // Size chart in inches
+  { name: "sizeChartCm", maxCount: 1 }, // Size chart in centimeters
+  { name: "sizeMeasurement", maxCount: 1 }, // Size measurement image
+]);
 
-// Route to create item details (with image upload)
+// Route to create item details (with multiple file uploads)
 router.post(
   "/:itemId",
-  upload.array("images", 5), // Accept up to 5 images
+  upload,
   itemDetailsController.createItemDetails
 );
-router.get("/", itemDetailsController.getAllItemDetails);
-router.get("/:itemId", itemDetailsController.getItemDetailsByItemId);
-// router.put("/:id", itemDetailsController.updateItemDetails);
-router.put("/:itemId", upload.array("images", 5), itemDetailsController.updateItemDetails);
 
+// Route to get all item details
+router.get("/", itemDetailsController.getAllItemDetails);
+
+// Route to get item details by itemId
+router.get("/:itemId", itemDetailsController.getItemDetailsByItemId);
+
+// Route to update item details (with multiple file uploads)
+router.put(
+  "/:itemId",
+  upload,
+  itemDetailsController.updateItemDetails
+);
+
+// Route to delete item details
 router.delete("/:id", itemDetailsController.deleteItemDetails);
+
+// Route to delete a specific image from item details
 router.post("/item-details/:itemId/delete-image", itemDetailsController.deleteImageFromItemDetails);
 
 module.exports = router;

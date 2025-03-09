@@ -5,8 +5,8 @@ const Item = require("../../models/Item"); // Assuming you have an Item model
 // ✅ Add item to cart
 exports.create = async (req, res) => {
     try {
-        console.log("req.body",req.body);
-        const { itemId, quantity } = req.body;
+        console.log("req.body", req.body);
+        const { itemId, quantity, desiredSize } = req.body; // Include desiredSize
         const userId = req.user._id;
 
         // Check if the item exists
@@ -15,8 +15,8 @@ exports.create = async (req, res) => {
             return res.status(404).json(ApiResponse(null, "Item not found", false, 404));
         }
 
-        // Check if item is already in cart
-        let existingCartItem = await Cart.findOne({ user: userId, item: itemId });
+        // Check if item with the same size is already in cart
+        let existingCartItem = await Cart.findOne({ user: userId, item: itemId, desiredSize });
         if (existingCartItem) {
             existingCartItem.quantity += quantity;
             await existingCartItem.save();
@@ -24,7 +24,7 @@ exports.create = async (req, res) => {
         }
 
         // Add new item to cart
-        const newCartItem = new Cart({ user: userId, item: itemId, quantity });
+        const newCartItem = new Cart({ user: userId, item: itemId, quantity, desiredSize });
         await newCartItem.save();
 
         res.status(201).json(ApiResponse(newCartItem, "Item added to cart successfully", true, 201));
@@ -47,11 +47,17 @@ exports.getByUserId = async (req, res) => {
     }
 };
 
-// ✅ Update cart item quantity
+// ✅ Update cart item quantity or size
 exports.updateById = async (req, res) => {
     try {
         const { id } = req.params;
-        const updated = await Cart.findByIdAndUpdate(id, req.body, { new: true });
+        const { quantity, desiredSize } = req.body;
+
+        const updated = await Cart.findByIdAndUpdate(
+            id,
+            { quantity, desiredSize },
+            { new: true }
+        );
 
         res.status(200).json(ApiResponse(updated, "Cart item updated successfully", true, 200));
     } catch (error) {
@@ -73,14 +79,10 @@ exports.deleteById = async (req, res) => {
     }
 };
 
+// ✅ Clear cart for a user
 exports.deleteByUserId = async (req, res) => {
-    console.log("req")
-    const userId = req.user._id;
-    console.log("req.user._id", req.user._id);
-    console.log("userId", userId);
-
-
     try {
+        const userId = req.user._id;
         await Cart.deleteMany({ user: userId });
 
         res.status(200).json(ApiResponse(null, "Cart cleared successfully", true, 200));
