@@ -3,82 +3,87 @@ const mongoose = require("mongoose");
 const itemDetailsSchema = new mongoose.Schema({
   descriptionAndReturns: {
     type: String,
-    required: true, // Example: A detailed product description.
+    required: true,
   },
   fitDetails: [
     {
-      type: String, // Details like "Regular Fit", "Mid Rise", etc.
+      type: String,
       required: false,
     },
   ],
   careInstructions: {
-    type: String, // Example: "7 Days No Wash & No Iron"
+    type: String,
     required: false,
   },
   size: {
-    modelHeight: { type: String, required: false }, // Example: "Model height 188cm"
-    modelMeasurements: { type: String, required: false }, // Example: "Chest-39, Waist-32, Hips-38"
-    modelWearingSize: { type: String, required: false }, // Example: "Size M"
+    modelHeight: { type: String, required: false },
+    modelMeasurements: { type: String, required: false },
+    modelWearingSize: { type: String, required: false },
   },
-  // New field for sizes and their stock
   sizes: [
     {
-      size: { type: String, required: true }, // Example: "S", "M", "L", "XL"
-      stock: { type: Number, required: true, min: 0 }, // Stock quantity for this size
+      size: { type: String, required: true },
+      stock: { type: Number, required: true, min: 0 },
     },
   ],
   manufacturerDetails: {
-    name: { type: String, required: true }, // Example: "Radhamani Textiles Private Limited"
-    address: { type: String, required: true }, // Manufacturer address
-    countryOfOrigin: { type: String, required: true }, // Example: "India"
+    name: { type: String, required: true },
+    address: { type: String, required: true },
+    countryOfOrigin: { type: String, required: true },
     contactDetails: {
-      phone: { type: String, required: true }, // Example: "+91 80 66085236"
-      email: { type: String, required: true }, // Example: "support@thehouseofrare.com"
+      phone: { type: String, required: true },
+      email: { type: String, required: true },
     },
   },
   shippingAndReturns: {
     shippingDetails: [
       {
-        type: String, // Shipping policies, e.g., "50 Rs shipping charges for orders below 2500Rs."
+        type: String,
         required: false,
       },
     ],
     returnPolicy: [
       {
-        type: String, // Return policy points, e.g., "We have a 7-day return policy."
+        type: String,
         required: false,
       },
     ],
   },
-  images: [
+  // Updated structure: media organized by color with up to 5 media items (images or videos) per color
+  media: [
     {
-      type: String, // Array of general image URLs
-      required: false,
+      color: { type: String, required: true }, // e.g., "red", "yellow"
+      mediaItems: [
+        {
+          url: { type: String, required: true }, // URL for image or video
+          type: { type: String, enum: ["image", "video"], required: true }, // Media type
+          priority: { type: Number, required: true, default: 0 }, // Priority within the color group
+        },
+      ],
     },
   ],
-  // New fields for specific size-related images
   sizeChartInch: {
-    type: String, // URL for size chart in inches
+    type: String,
     required: false,
   },
   sizeChartCm: {
-    type: String, // URL for size chart in centimeters
+    type: String,
     required: false,
   },
   sizeMeasurement: {
-    type: String, // URL for size measurement image
+    type: String,
     required: false,
   },
   dimensions: {
-    length: { type: Number, required: false }, // Length of the item (cm)
-    breadth: { type: Number, required: false }, // Breadth of the item (cm)
-    height: { type: Number, required: false }, // Height of the item (cm)
-    width: { type: Number, required: false }, // Width of the item (cm)
-    weight: { type: Number, required: false }, // Weight of the item (kg)
+    length: { type: Number, required: false },
+    breadth: { type: Number, required: false },
+    height: { type: Number, required: false },
+    width: { type: Number, required: false },
+    weight: { type: Number, required: false },
   },
   items: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Item", // Reference to the Item model
+    ref: "Item",
     required: true,
   },
 });

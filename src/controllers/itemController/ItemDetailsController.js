@@ -9,30 +9,24 @@ exports.createItemDetails = async (req, res) => {
     const { itemId } = req.params;
     console.log("item", itemId);
 
-    // Check if the Item exists
     const itemExists = await Item.findById(itemId);
     if (!itemExists) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    // Parse JSON data from "data" field
     let itemDetailsData = {};
     if (req.body.data) {
       try {
-        console.log("req.body.data");
         itemDetailsData = JSON.parse(req.body.data);
-        console.log("itemDetailsData", itemDetailsData);
+        console.log("itemDetailsData:", itemDetailsData);
       } catch (error) {
         return res.status(400).json({ error: "Invalid JSON format in 'data' field" });
       }
     }
 
-    // Ensure fitDetails is always an array
     if (!Array.isArray(itemDetailsData.fitDetails)) {
       itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : [];
     }
-
-    // Ensure sizes is an array if provided
     if (itemDetailsData.sizes && !Array.isArray(itemDetailsData.sizes)) {
       itemDetailsData.sizes = [itemDetailsData.sizes];
     }
@@ -40,16 +34,34 @@ exports.createItemDetails = async (req, res) => {
     const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
     const categoryId = existingSubCategory.categoryId;
 
-    // Upload general images to S3 if provided
-    let imageUrls = [];
-    if (req.files && req.files.images && req.files.images.length > 0) {
-      const uploadPromises = req.files.images.map((file) =>
-        uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/details`)
-      );
-      imageUrls = await Promise.all(uploadPromises);
+    let media = [];
+    const totalMediaPerColor = 5;
+    const colors = req.body.colors ? JSON.parse(req.body.colors) : [];
+    const priorityArray = req.body.priority ? JSON.parse(req.body.priority) : [];
+
+    const newMediaFiles = [
+      ...(req.files.images || []),
+      ...(req.files.videos || []),
+    ];
+    if (newMediaFiles.length > 0) {
+      let fileIndex = 0;
+      for (const color of colors) {
+        const mediaForColor = newMediaFiles.slice(fileIndex, fileIndex + totalMediaPerColor);
+        if (mediaForColor.length > totalMediaPerColor) {
+          return res.status(400).json({ error: `Cannot upload more than ${totalMediaPerColor} media items per color.` });
+        }
+        const uploadPromises = mediaForColor.map((file, index) => {
+          const mediaType = file.fieldname === "images" ? "image" : "video";
+          const priority = priorityArray[fileIndex + index] || index;
+          return uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/media/${color}_${mediaType}_${index}`)
+            .then((url) => ({ url, type: mediaType, priority }));
+        });
+        const mediaItems = await Promise.all(uploadPromises);
+        media.push({ color, mediaItems });
+        fileIndex += totalMediaPerColor;
+      }
     }
 
-    // Upload specific size chart images to S3
     const sizeChartInch = req.files && req.files.sizeChartInch
       ? await uploadMultipart(req.files.sizeChartInch[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartInch`)
       : null;
@@ -60,20 +72,17 @@ exports.createItemDetails = async (req, res) => {
       ? await uploadMultipart(req.files.sizeMeasurement[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeMeasurement`)
       : null;
 
-    // Create new ItemDetails with parsed JSON + images
     const newItemDetails = new ItemDetails({
       ...itemDetailsData,
       items: itemId,
-      images: imageUrls,
+      media,
       sizeChartInch,
       sizeChartCm,
       sizeMeasurement,
     });
 
-    // Save to DB
     itemExists.isItemDetail = true;
     await itemExists.save();
-    console.log("newItemDetails", newItemDetails);
     const savedDetails = await newItemDetails.save();
     res.status(201).json(savedDetails);
   } catch (error) {
@@ -99,6 +108,7 @@ exports.getItemDetailsByItemId = async (req, res) => {
     if (!details) {
       return res.status(404).json({ error: "Item Details not found for the given Item ID" });
     }
+    console.log("details",details)
     res.status(200).json(details);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -109,33 +119,25 @@ exports.getItemDetailsByItemId = async (req, res) => {
 exports.updateItemDetails = async (req, res) => {
   try {
     const { itemId } = req.params;
-    console.log("Item ID:", itemId);
-
-    // Check if the Item exists
     const itemExists = await Item.findById(itemId);
     if (!itemExists) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    // Find existing ItemDetails by itemId
     const existingDetails = await ItemDetails.findOne({ items: itemId });
     if (!existingDetails) {
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    // Parse JSON data from "data" field
     let itemDetailsData = {};
     if (req.body.data) {
       try {
-        console.log("Parsing req.body.data...");
         itemDetailsData = JSON.parse(req.body.data);
-        console.log("Parsed itemDetailsData:", itemDetailsData);
       } catch (error) {
         return res.status(400).json({ error: "Invalid JSON format in 'data' field" });
       }
     }
 
-    // Ensure fitDetails and sizes are arrays
     if (!Array.isArray(itemDetailsData.fitDetails)) {
       itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : existingDetails.fitDetails;
     }
@@ -146,20 +148,54 @@ exports.updateItemDetails = async (req, res) => {
     const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
     const categoryId = existingSubCategory.categoryId;
 
-    // Handle general images
-    let imageUrls = existingDetails.images || [];
-    if (req.files && req.files.images && req.files.images.length > 0) {
-      console.log("New images uploaded, deleting old images...");
-      if (imageUrls.length > 0) {
-        await deleteFileFromS3(imageUrls);
-      }
-      const uploadPromises = req.files.images.map((file) =>
-        uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/details`)
-      );
-      imageUrls = await Promise.all(uploadPromises);
+    let media = [...existingDetails.media] || [];
+    const deletedMedia = req.body.deletedMedia ? JSON.parse(req.body.deletedMedia) : [];
+    if (deletedMedia.length > 0) {
+      const mediaToDelete = [];
+      media = media.map((colorGroup) => {
+        const updatedMediaItems = colorGroup.mediaItems.filter((item) => {
+          const shouldDelete = deletedMedia.some((d) => d.url === item.url && d.color === colorGroup.color);
+          if (shouldDelete) mediaToDelete.push(item.url);
+          return !shouldDelete;
+        });
+        return { ...colorGroup, mediaItems: updatedMediaItems };
+      }).filter((group) => group.mediaItems.length > 0);
+      await deleteFileFromS3(mediaToDelete);
     }
 
-    // Handle specific size chart images
+    const totalMediaPerColor = 5;
+    const newImageFiles = req.files.images || [];
+    const newVideoFiles = req.files.videos || [];
+    const newMediaFiles = [...newImageFiles, ...newVideoFiles];
+    const colors = req.body.colors ? JSON.parse(req.body.colors) : [];
+    const priorityArray = req.body.priority ? JSON.parse(req.body.priority) : [];
+
+    if (newMediaFiles.length > 0) {
+      let fileIndex = 0;
+      for (const color of colors) {
+        const mediaForColor = newMediaFiles.slice(fileIndex, fileIndex + totalMediaPerColor);
+        if (mediaForColor.length > totalMediaPerColor) {
+          return res.status(400).json({ error: `Cannot upload more than ${totalMediaPerColor} media items per color.` });
+        }
+        const uploadPromises = mediaForColor.map((file, index) => {
+          const mediaType = file.fieldname === "images" ? "image" : "video";
+          const priority = priorityArray[fileIndex + index] || index;
+          return uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/media/${color}_${mediaType}_${index}`)
+            .then((url) => ({ url, type: mediaType, priority }));
+        });
+        const mediaItems = await Promise.all(uploadPromises);
+        const existingColorGroup = media.find((group) => group.color === color);
+        if (existingColorGroup) {
+          existingColorGroup.mediaItems = mediaItems;
+        } else {
+          media.push({ color, mediaItems });
+        }
+        fileIndex += totalMediaPerColor;
+      }
+    }
+
+    media.forEach((group) => group.mediaItems.sort((a, b) => a.priority - b.priority));
+
     let sizeChartInch = existingDetails.sizeChartInch;
     if (req.files && req.files.sizeChartInch) {
       if (sizeChartInch) await deleteFileFromS3([sizeChartInch]);
@@ -178,13 +214,12 @@ exports.updateItemDetails = async (req, res) => {
       sizeMeasurement = await uploadMultipart(req.files.sizeMeasurement[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeMeasurement`);
     }
 
-    // Update ItemDetails
     const updatedDetails = await ItemDetails.findOneAndUpdate(
       { items: itemId },
       {
         ...itemDetailsData,
         items: itemId,
-        images: imageUrls,
+        media,
         sizeChartInch,
         sizeChartCm,
         sizeMeasurement,
@@ -192,42 +227,32 @@ exports.updateItemDetails = async (req, res) => {
       { new: true }
     ).populate("items");
 
-    console.log("Updated ItemDetails:", updatedDetails);
     res.status(200).json(updatedDetails);
   } catch (error) {
-    console.log("Error:", error);
     res.status(400).json({ error: error.message });
   }
 };
 
-// ✅ DELETE ItemDetails with S3 Image Cleanup
+// ✅ DELETE ItemDetails with S3 Media Cleanup
 exports.deleteItemDetails = async (req, res) => {
-  console.log("deleteItemDetails");
   try {
     const { id } = req.params;
-    console.log("id", id);
-
-    // Find the item details
     const itemDetails = await ItemDetails.findById(id);
     if (!itemDetails) {
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    // Delete all images from S3
-    const allImages = [
-      ...itemDetails.images,
+    const allMedia = [
+      ...itemDetails.media.flatMap((group) => group.mediaItems.map((item) => item.url)),
       itemDetails.sizeChartInch,
       itemDetails.sizeChartCm,
       itemDetails.sizeMeasurement,
-    ].filter(Boolean); // Filter out null/undefined values
-    if (allImages.length > 0) {
-      await deleteFileFromS3(allImages);
+    ].filter(Boolean);
+    if (allMedia.length > 0) {
+      await deleteFileFromS3(allMedia);
     }
 
-    // Remove ItemDetails from DB
     await ItemDetails.findByIdAndDelete(id);
-
-    // Update related Item
     await Item.findByIdAndUpdate(itemDetails.items, { isItemDetail: false });
 
     res.status(200).json({ message: "Item Details deleted successfully" });
@@ -236,50 +261,37 @@ exports.deleteItemDetails = async (req, res) => {
   }
 };
 
-// ✅ DELETE Specific Image from ItemDetails
-exports.deleteImageFromItemDetails = async (req, res) => {
-  console.log("deleteImageFromItemDetails");
+// ✅ DELETE Specific Media from ItemDetails
+exports.deleteMediaFromItemDetails = async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { imageUrl } = req.body;
-    console.log("itemId", itemId);
-    console.log("imageUrl", imageUrl);
-
-    if (!imageUrl) {
-      return res.status(400).json({ error: "Image URL is required" });
+    const { mediaUrl, color } = req.body;
+    if (!mediaUrl || !color) {
+      return res.status(400).json({ error: "Media URL and color are required" });
     }
 
-    // Find the item details
     const itemDetails = await ItemDetails.findOne({ items: itemId });
     if (!itemDetails) {
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    // Handle deletion from general images array
-    if (itemDetails.images.includes(imageUrl)) {
-      await deleteFileFromS3([imageUrl]);
-      itemDetails.images = itemDetails.images.filter((img) => img !== imageUrl);
-    }
-    // Handle deletion of specific size chart images
-    else if (itemDetails.sizeChartInch === imageUrl) {
-      await deleteFileFromS3([imageUrl]);
-      itemDetails.sizeChartInch = null;
-    }
-    else if (itemDetails.sizeChartCm === imageUrl) {
-      await deleteFileFromS3([imageUrl]);
-      itemDetails.sizeChartCm = null;
-    }
-    else if (itemDetails.sizeMeasurement === imageUrl) {
-      await deleteFileFromS3([imageUrl]);
-      itemDetails.sizeMeasurement = null;
-    }
-    else {
-      return res.status(404).json({ error: "Image not found in Item Details" });
+    const colorGroup = itemDetails.media.find((group) => group.color === color);
+    if (!colorGroup) {
+      return res.status(404).json({ error: "Color group not found" });
     }
 
-    await itemDetails.save();
-    console.log("Updated ItemDetails Images:", itemDetails);
-    res.status(200).json({ message: "Image deleted successfully", updatedDetails: itemDetails });
+    const mediaIndex = colorGroup.mediaItems.findIndex((item) => item.url === mediaUrl);
+    if (mediaIndex !== -1) {
+      await deleteFileFromS3([mediaUrl]);
+      colorGroup.mediaItems.splice(mediaIndex, 1);
+      if (colorGroup.mediaItems.length === 0) {
+        itemDetails.media = itemDetails.media.filter((group) => group.color !== color);
+      }
+      await itemDetails.save();
+      res.status(200).json({ message: "Media deleted successfully", updatedDetails: itemDetails });
+    } else {
+      return res.status(404).json({ error: "Media not found in Item Details" });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

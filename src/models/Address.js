@@ -12,7 +12,7 @@ const addressSchema = new Schema(
     pinCode: { type: String, required: true },
     country: { type: String, required: true },
     phoneNumber: { type: String, required: true },
-    type: { type: String, enum: ["current", "new"], required: true }, // Ensure only two types exist
+    type: { type: String, enum: ["current", "new"], required: true },
   },
   { timestamps: true, versionKey: false }
 );

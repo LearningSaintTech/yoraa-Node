@@ -6,7 +6,7 @@ const cartSchema = new Schema(
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     item: { type: Schema.Types.ObjectId, ref: "Item", required: true },
     quantity: { type: Number, default: 1 },
-    desiredSize: { type: String, required: true }, // Added desiredSize field
+    desiredSize: { type: String, required: true }, 
   },
   { timestamps: true, versionKey: false }
 );

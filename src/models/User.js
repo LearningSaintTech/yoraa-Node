@@ -48,7 +48,7 @@ const userSchema=new Schema({
         required: false, 
       },
       fcmToken: { type: String, unique: false },
-
+      platform: { type: String, enum: ["android", "ios"], default: null }, // Add platform field
       emailVerificationToken:{
         type: String,
         required: false,       }

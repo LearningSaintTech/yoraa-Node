@@ -91,3 +91,21 @@ exports.deleteByUserId = async (req, res) => {
         res.status(500).json(ApiResponse(null, "Error clearing cart", false, 500));
     }
 };
+// ✅ Delete a cart item by itemId for a specific user
+exports.deleteByItemId = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { itemId } = req.params;
+
+        const deletedItem = await Cart.findOneAndDelete({ user: userId, item: itemId });
+
+        if (!deletedItem) {
+            return res.status(404).json(ApiResponse(null, "Cart item not found", false, 404));
+        }
+
+        res.status(200).json(ApiResponse(null, "Cart item removed successfully", true, 200));
+    } catch (error) {
+        console.log(error);
+        res.status(500).json(ApiResponse(null, "Error deleting cart item", false, 500));
+    }
+};

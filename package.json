@@ -22,7 +22,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase": "^11.1.0",
-    "firebase-admin": "^13.0.2",
+    "firebase-admin": "^13.2.0",
     "jsonwebtoken": "^9.0.2",
     "mime-types": "^2.1.35",
     "mongodb": "^6.12.0",

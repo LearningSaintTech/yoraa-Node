@@ -9,6 +9,7 @@ cartRoutes
 	.get("/user", verifyToken, cartController.getByUserId) // Get cart by user
 	.patch("/:id", verifyToken, cartController.updateById) // Update cart item
 	.delete("/:id", verifyToken, cartController.deleteById) // Delete cart item
-	.delete("/user/delete", verifyToken, cartController.deleteByUserId); // Clear entire cart
+	.delete("/user/delete", verifyToken, cartController.deleteByUserId) // Clear entire cart
+	.delete("/item/:itemId", verifyToken, cartController.deleteByItemId) // ✅ Delete cart item by itemId
 
 module.exports = cartRoutes;
