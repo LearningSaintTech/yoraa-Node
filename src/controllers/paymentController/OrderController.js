@@ -762,3 +762,127 @@ exports.createReturnOrder = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
+
+exports.getReturnOrdersByUser = async (req, res) => {
+  console.log("Fetching return orders for user...");
+
+  try {
+    const userId = req.user._id; // Assuming user is authenticated and req.user is populated
+    console.log("User ID:", userId);
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Count total return orders for the user
+    const totalReturnOrders = await Order.countDocuments({
+      user: userId,
+      "refund.requestDate": { $exists: true }, // Check if refund field exists, indicating a return request
+    });
+
+    console.log("Total return orders:", totalReturnOrders);
+
+    // Fetch return orders with pagination
+    const returnOrders = await Order.find({
+      user: userId,
+      "refund.requestDate": { $exists: true }, // Only orders with a return request
+    })
+      .populate("user", "firstName lastName email phoneNumber")
+      .populate("items", "name price imageUrl description")
+      .populate("item_quantities.item_id", "name price image")
+      .select("order_status shipping_status total_price refund created_at") // Select relevant fields
+      .sort({ "refund.requestDate": -1 }) // Sort by return request date, newest first
+      .skip(skip)
+      .limit(limit);
+
+    console.log("Return Orders Retrieved:", returnOrders.length);
+    console.log("Return Orders Data:", JSON.stringify(returnOrders, null, 2));
+
+    if (!returnOrders.length) {
+      console.log("No return orders found.");
+      return res.status(404).json({
+        success: false,
+        message: "No return orders found for this user",
+      });
+    }
+
+    // Response
+    res.status(200).json({
+      success: true,
+      totalReturnOrders,
+      currentPage: page,
+      totalPages: Math.ceil(totalReturnOrders / limit),
+      returnOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching return orders:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+exports.getExchangeOrdersByUser = async (req, res) => {
+  console.log("Fetching exchange orders for user...");
+
+  try {
+    const userId = req.user._id;
+    console.log("User ID:", userId);
+
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Count total exchange orders for the user
+    const totalExchangeOrders = await Order.countDocuments({
+      user: userId,
+      "exchange.requestDate": { $exists: true }, // Check if exchange field exists, indicating an exchange request
+    });
+
+    console.log("Total exchange orders:", totalExchangeOrders);
+
+    // Fetch exchange orders with pagination
+    const exchangeOrders = await Order.find({
+      user: userId,
+      "exchange.requestDate": { $exists: true }, // Only orders with an exchange request
+    })
+      .populate("user", "firstName lastName email phoneNumber")
+      .populate("items", "name price imageUrl description")
+      .populate("item_quantities.item_id", "name price image")
+      .select("order_status shipping_status total_price exchange created_at") // Select relevant fields
+      .sort({ "exchange.requestDate": -1 }) // Sort by exchange request date, newest first
+      .skip(skip)
+      .limit(limit);
+
+    console.log("Exchange Orders Retrieved:", exchangeOrders.length);
+    console.log("Exchange Orders Data:", JSON.stringify(exchangeOrders, null, 2));
+
+    if (!exchangeOrders.length) {
+      console.log("No exchange orders found.");
+      return res.status(404).json({
+        success: false,
+        message: "No exchange orders found for this user",
+      });
+    }
+
+    // Response
+    res.status(200).json({
+      success: true,
+      totalExchangeOrders,
+      currentPage: page,
+      totalPages: Math.ceil(totalExchangeOrders / limit),
+      exchangeOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching exchange orders:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};

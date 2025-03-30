@@ -26,7 +26,7 @@ router.get("/", itemDetailsController.getAllItemDetails);
 router.get("/:itemId", itemDetailsController.getItemDetailsByItemId);
 
 // Route to update item details (with multiple file uploads)
-router.put("/:itemId", upload, itemDetailsController.updateItemDetails);
+router.put("/update/:itemId", upload, itemDetailsController.updateItemDetails);
 
 // Route to delete item details
 router.delete("/:id", itemDetailsController.deleteItemDetails);
