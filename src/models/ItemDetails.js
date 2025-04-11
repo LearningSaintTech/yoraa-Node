@@ -20,10 +20,23 @@ const itemDetailsSchema = new mongoose.Schema({
     modelMeasurements: { type: String, required: false },
     modelWearingSize: { type: String, required: false },
   },
-  sizes: [
+  colors: [
     {
-      size: { type: String, required: true },
-      stock: { type: Number, required: true, min: 0 },
+      color: { type: String, required: true },
+      images: [
+        {
+          url: { type: String, required: true },
+          type: { type: String, enum: ["image", "video"], required: true },
+          priority: { type: Number, default: 0 },
+        },
+      ],
+      sizes: [
+        {
+          size: { type: String, required: true },
+          stock: { type: Number, required: true, min: 0 },
+          sku: { type: String, required: true, unique: true },
+        },
+      ],
     },
   ],
   manufacturerDetails: {
@@ -49,27 +62,24 @@ const itemDetailsSchema = new mongoose.Schema({
       },
     ],
   },
-  // Updated structure: media organized by color with up to 5 media items (images or videos) per color
-  media: [
+  sizeChartInch: [
     {
-      color: { type: String, required: true }, // e.g., "red", "yellow"
-      mediaItems: [
-        {
-          url: { type: String, required: true }, // URL for image or video
-          type: { type: String, enum: ["image", "video"], required: true }, // Media type
-          priority: { type: Number, required: true, default: 0 }, // Priority within the color group
-        },
-      ],
+      measurements: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        required: true,
+      },
     },
   ],
-  sizeChartInch: {
-    type: String,
-    required: false,
-  },
-  sizeChartCm: {
-    type: String,
-    required: false,
-  },
+  sizeChartCm: [
+    {
+      measurements: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        required: true,
+      },
+    },
+  ],
   sizeMeasurement: {
     type: String,
     required: false,

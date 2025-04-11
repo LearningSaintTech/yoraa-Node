@@ -2,46 +2,62 @@ const Item = require("../../models/Item");
 const SubCategory = require("../../models/SubCategory");
 const { ApiResponse } = require("../../utils/ApiResponse");
 const { deleteFileFromS3 } = require("../../utils/S3");
+const mongoose = require("mongoose");
 
 /**
  * Create a new item
  */
-exports.createItem = async (req, res,newItemId) => {
-  console.log(" qqqqqqqqqqqqqq")
+exports.createItem = async (req, res, newItemId) => {
   try {
-    console.log(" 111111111111111")
+    if (!req.body.imageUrl) {
+      return res.status(400).json(ApiResponse(null, "Image is required", false, 400));
+    }
 
-     if (!req.body.imageUrl) {
-          return res.status(400).json(ApiResponse(null, "Image is required", false, 400));
-        }
+    const {
+      name, description, price, stock, brand, style, occasion,
+      fit, material, discountPrice, subCategoryId, categoryId,
+      imageUrl, filters
+    } = req.body;
 
-        const { data,subCategoryId,imageUrl,categoryId } = req.body;
-        const itemData = JSON.parse(data);  // Parse the JSON string into an object
-        const {
-          name, description, price, stock, brand, style, occasion, fit, material, discountPrice
-        } = itemData;
-    // Validate subcategory existence
     const subCategory = await SubCategory.findById(subCategoryId);
     if (!subCategory) {
-    return  res.status(500).json(ApiResponse(null,"SubCategory not found", false, 500));
-
+      return res.status(500).json(ApiResponse(null, "SubCategory not found", false, 500));
     }
-console.log("itemdaa",itemData)
+
+    // Parse and format filters if they exist
+    let formattedFilters = [];
+    if (filters) {
+      try {
+        const parsedFilters = JSON.parse(filters); // Parse the stringified filters
+        if (Array.isArray(parsedFilters)) {
+          formattedFilters = parsedFilters.map(filter => ({
+            key: filter.key,
+            value: filter.value,
+            code: filter.code || "" // Default to empty string if code is missing
+          }));
+        }
+      } catch (error) {
+        console.error("Error parsing filters:", error);
+        return res.status(400).json(ApiResponse(null, "Invalid filters format", false, 400));
+      }
+    }
+
     const newItem = new Item({
-      _id:newItemId,
+      _id: newItemId,
       name,
       description,
-      price,
-      stock,
+      price: Number(price), // Convert to number
+      stock: Number(stock),
       subCategoryId,
       brand,
-      style,
-      occasion,
-      fit,
-      material,
-      discountPrice,
+      style: style ? style.split(",") : [], // Convert comma-separated string to array
+      occasion: occasion ? occasion.split(",") : [],
+      fit: fit ? fit.split(",") : [],
+      material: material ? material.split(",") : [],
+      discountPrice: discountPrice ? Number(discountPrice) : undefined,
       categoryId,
-      imageUrl: req.body.imageUrl ? req.body.imageUrl : null, // Store image URL if present
+      imageUrl,
+      filters: formattedFilters
     });
 
     await newItem.save();
@@ -52,17 +68,13 @@ console.log("itemdaa",itemData)
   }
 };
 
-
-/**
- * Get items by subCategoryId
- */
 /**
  * Get items by subCategoryId
  */
 exports.getItemsBySubCategory = async (req, res) => {
   try {
     const { subCategoryId } = req.params;
-    const { page = 1, limit = 10, filters = {} } = req.body;
+    const { page = 1, limit = 100, filters = {} } = req.body;
 
     let filterCriteria = { subCategoryId };
 
@@ -92,75 +104,106 @@ exports.getItemsBySubCategory = async (req, res) => {
   }
 };
 
-const mongoose = require("mongoose");
-
+/**
+ * Get items by filters
+ */
 exports.getItemsByFilter = async (req, res) => {
   console.log("Fetching items with filters...");
 
   try {
-    const { page = 1, limit = 10, filters = {}, searchText = "" } = req.body;
-    console.log("Request Filters:", JSON.stringify(filters, null, 2));
+    const { page = 1, limit = 100, filters = {}, searchText = "" } = req.body;
+    console.log("Received Request Body:", JSON.stringify(req.body, null, 2));
+    console.log("Extracted Filters:", JSON.stringify(filters, null, 2));
 
     let filterCriteria = {};
-
-    // Convert ID strings to ObjectId
     const toObjectId = (id) => mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null;
 
-    let categoryIds = null;
-    let subCategoryIds = null;
-
-    // Handle multiple categoryIds
+    // Category/subcategory handling
+    let validCategoryIds = []; // Declare outside for consistent scope
     if (filters.categoryId) {
-      categoryIds = Array.isArray(filters.categoryId) ? filters.categoryId : [filters.categoryId];
-      categoryIds = categoryIds.map(toObjectId).filter(id => id);
-      filterCriteria.categoryId = { $in: categoryIds };
+      const categoryIds = Array.isArray(filters.categoryId) ? filters.categoryId : [filters.categoryId];
+      validCategoryIds = categoryIds.map(toObjectId).filter(id => id);
+      filterCriteria.categoryId = { $in: validCategoryIds };
+      console.log("Applied categoryId filter:", JSON.stringify(filterCriteria.categoryId, null, 2));
     }
 
-    console.log("Parsed Category IDs:", categoryIds);
-
-    // Handle multiple subCategoryIds (filter only if category is selected)
     if (filters.subCategoryId) {
-      subCategoryIds = Array.isArray(filters.subCategoryId) ? filters.subCategoryId : [filters.subCategoryId];
-      subCategoryIds = subCategoryIds.map(toObjectId).filter(id => id);
+      const subCategoryIds = Array.isArray(filters.subCategoryId) ? filters.subCategoryId : [filters.subCategoryId];
+      const validSubCategoryIds = subCategoryIds.map(toObjectId).filter(id => id);
+      console.log("Raw subCategoryIds:", subCategoryIds);
+      console.log("Valid subCategoryIds:", validSubCategoryIds);
 
-      console.log("Parsed SubCategory IDs:", subCategoryIds);
-
-      if (categoryIds.length > 0) {
-        // Fetch only the subcategories that belong to the selected categories
-        const validSubCategories = await SubCategory.find({ categoryId: { $in: categoryIds } }).distinct("_id");
-
-        console.log("Valid SubCategories based on Category IDs:", validSubCategories);
-
-        // Filter out invalid subcategories
-        const filteredSubCategories = subCategoryIds.filter(id => validSubCategories.some(validId => validId.equals(id)));
-
-        console.log("Filtered SubCategory IDs:", filteredSubCategories);
-
+      if (filters.categoryId && validCategoryIds.length > 0) {
+        const validSubCategories = await SubCategory.find({ categoryId: { $in: validCategoryIds } }).distinct("_id");
+        console.log("Valid subcategories from DB:", validSubCategories.map(id => id.toString()));
+        const filteredSubCategories = validSubCategoryIds.filter(id => validSubCategories.some(validId => validId.equals(id)));
         if (filteredSubCategories.length > 0) {
           filterCriteria.subCategoryId = { $in: filteredSubCategories };
+          console.log("Applied subCategoryId filter with category check:", JSON.stringify(filterCriteria.subCategoryId, null, 2));
         } else {
-          console.log("No valid subcategories found matching the given category.");
+          console.log("No matching subcategories found for categoryId, skipping subCategoryId filter");
         }
       } else {
-        filterCriteria.subCategoryId = { $in: subCategoryIds };
+        filterCriteria.subCategoryId = { $in: validSubCategoryIds };
+        console.log("Applied subCategoryId filter:", JSON.stringify(filterCriteria.subCategoryId, null, 2));
       }
     }
 
-    if (filters.brand) filterCriteria.brand = { $in: filters.brand };
-    if (filters.style) filterCriteria.style = { $in: filters.style };
-    if (filters.occasion) filterCriteria.occasion = { $in: filters.occasion };
-    if (filters.fit) filterCriteria.fit = { $in: filters.fit };
-    if (filters.material) filterCriteria.material = { $in: filters.material };
-    if (filters.minPrice) filterCriteria.price = { $gte: parseFloat(filters.minPrice) };
-    if (filters.maxPrice) filterCriteria.price = { ...filterCriteria.price, $lte: parseFloat(filters.maxPrice) };
-    if (filters.minRating) filterCriteria.averageRating = { $gte: parseFloat(filters.minRating) };
+    // Handle predefined fields
+    if (filters.brand) {
+      filterCriteria.brand = { $in: filters.brand };
+      console.log("Applied brand filter:", filterCriteria.brand);
+    }
+    if (filters.style) {
+      filterCriteria.style = { $in: filters.style };
+      console.log("Applied style filter:", filterCriteria.style);
+    }
+    if (filters.occasion) {
+      filterCriteria.occasion = { $in: filters.occasion };
+      console.log("Applied occasion filter:", filterCriteria.occasion);
+    }
+    if (filters.fit) {
+      filterCriteria.fit = { $in: filters.fit };
+      console.log("Applied fit filter:", filterCriteria.fit);
+    }
+    if (filters.material) {
+      filterCriteria.material = { $in: filters.material };
+      console.log("Applied material filter:", filterCriteria.material);
+    }
+    if (filters.minPrice) {
+      filterCriteria.price = { $gte: parseFloat(filters.minPrice) };
+      console.log("Applied minPrice filter:", filterCriteria.price);
+    }
+    if (filters.maxPrice) {
+      filterCriteria.price = { ...filterCriteria.price, $lte: parseFloat(filters.maxPrice) };
+      console.log("Applied maxPrice filter:", filterCriteria.price);
+    }
+    if (filters.minRating) {
+      filterCriteria.averageRating = { $gte: parseFloat(filters.minRating) };
+      console.log("Applied minRating filter:", filterCriteria.averageRating);
+    }
 
-    // Search based on text
+    // Handle dynamic filters from the Item's filters array
+    const dynamicFilterKeys = Object.keys(filters).filter(
+      key => !['categoryId', 'subCategoryId', 'brand', 'style', 'occasion', 'fit', 'material', 'minPrice', 'maxPrice', 'minRating', 'customFilters'].includes(key)
+    );
+    console.log("Dynamic Filter Keys:", dynamicFilterKeys);
+
+    if (dynamicFilterKeys.length > 0) {
+      const filterQueries = dynamicFilterKeys.map(key => ({
+        "filters.key": key,
+        "filters.value": { $in: Array.isArray(filters[key]) ? filters[key] : [filters[key]] }
+      }));
+      filterCriteria.$and = filterQueries;
+      console.log("Applied dynamic filters ($and):", JSON.stringify(filterCriteria.$and, null, 2));
+    }
+
     if (searchText) {
       filterCriteria.$or = [
         { name: { $regex: searchText, $options: "i" } },
         { description: { $regex: searchText, $options: "i" } }
       ];
+      console.log("Applied searchText filter ($or):", filterCriteria.$or);
     }
 
     console.log("Final Filter Criteria:", JSON.stringify(filterCriteria, null, 2));
@@ -168,13 +211,11 @@ exports.getItemsByFilter = async (req, res) => {
     const items = await Item.find(filterCriteria)
       .skip((page - 1) * Number(limit))
       .limit(Number(limit));
-
-    console.log("Fetched Items Count:", items.length);
+    console.log("Items found:", JSON.stringify(items, null, 2));
 
     const totalItems = await Item.countDocuments(filterCriteria);
-    console.log("Total Matching Items:", totalItems);
+    console.log("Total items matching criteria:", totalItems);
 
-    // ✅ Formatted Response
     const response = {
       success: true,
       message: "Items fetched successfully",
@@ -190,7 +231,10 @@ exports.getItemsByFilter = async (req, res) => {
 
     res.status(200).json(response);
   } catch (err) {
-    console.error("Error fetching items:", err);
+    console.error("Error in getItemsByFilter:", {
+      message: err.message,
+      stack: err.stack,
+    });
     res.status(500).json({
       success: false,
       message: "Error fetching items",
@@ -200,18 +244,15 @@ exports.getItemsByFilter = async (req, res) => {
   }
 };
 
-
-
-
 /**
  * Get all items (with pagination)
  */
 exports.getAllItems = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 100 } = req.query;
     const items = await Item.find()
       .skip((page - 1) * Number(limit))
-      .limit(Number(limit))
+      .limit(Number(limit));
 
     const totalItems = await Item.countDocuments();
 
@@ -246,13 +287,13 @@ exports.getItemById = async (req, res) => {
  * Update an item
  */
 exports.updateItem = async (req, res) => {
+  console.log("req.body", req.body);
   try {
-    const { name, description, price, stock, subCategoryId } = req.body;
-console.log("name",name)
-console.log("name",description)
-console.log("name",price)
-console.log("name",stock)
-console.log("name",subCategoryId)
+    const {
+      name, description, price, stock, subCategoryId,
+      brand, style, occasion, fit, material, discountPrice,
+      categoryId, imageUrl, filters
+    } = req.body;
 
     if (subCategoryId) {
       const subCategory = await SubCategory.findById(subCategoryId);
@@ -261,16 +302,46 @@ console.log("name",subCategoryId)
       }
     }
 
+    // Parse and format filters if they exist
+    let formattedFilters = [];
+    if (filters) {
+      try {
+        const parsedFilters = JSON.parse(filters); // Parse the stringified filters
+        if (Array.isArray(parsedFilters)) {
+          formattedFilters = parsedFilters.map(filter => ({
+            key: filter.key,
+            value: filter.value,
+            code: filter.code || "" // Default to empty string if code is missing
+          }));
+        }
+      } catch (error) {
+        console.error("Error parsing filters:", error);
+        return res.status(400).json({ message: "Invalid filters format" });
+      }
+    }
+
     const updateData = {
       name,
       description,
-      price,
-      stock,
+      price: Number(price), // Convert to number
+      stock: Number(stock),
       subCategoryId,
-      imageUrl: req.body.imageUrl ? req.body.imageUrl : undefined,
+      brand,
+      style: style ? style.split(",") : [], // Convert comma-separated string to array
+      occasion: occasion ? occasion.split(",") : [],
+      fit: fit ? fit.split(",") : [],
+      material: material ? material.split(",") : [],
+      discountPrice: discountPrice ? Number(discountPrice) : undefined,
+      categoryId,
+      imageUrl,
+      filters: formattedFilters
     };
 
-    const item = await Item.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    const item = await Item.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true }
+    );
 
     if (!item) {
       return res.status(404).json({ message: "Item not found" });
@@ -288,7 +359,7 @@ console.log("name",subCategoryId)
  */
 exports.deleteItem = async (req, res) => {
   try {
-    console.log("params",req.params.id)
+    console.log("params", req.params.id);
     const item = await Item.findByIdAndDelete(req.params.id);
     if (!item) {
       return res.status(404).json({ message: "Item not found" });
@@ -308,21 +379,18 @@ exports.deleteItem = async (req, res) => {
  * Get latest items by subCategoryId sorted by timestamp (latest first)
  */
 exports.getLatestItemsBySubCategory = async (req, res) => {
-  console.log("1111111111111111")
+  console.log("1111111111111111");
   try {
-    const { subCategoryId } = req.params; // Subcategory ID from request parameters
-    const { page = 1, limit = 10 } = req.query; // Pagination details from query parameters
+    const { subCategoryId } = req.params;
+    const { page = 1, limit = 100 } = req.query;
 
-    // Find items in the subcategory and sort by timestamp
     const items = await Item.find({ subCategoryId })
-      .sort({ createdAt: -1 }) // Sort by createdAt field, latest first
-      .skip((page - 1) * Number(limit)) // Skip items for pagination
-      .limit(Number(limit)); // Limit items per page
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * Number(limit))
+      .limit(Number(limit));
 
-    // Get total count of items in the subcategory
     const totalItems = await Item.countDocuments({ subCategoryId });
 
-    // Send response with pagination details
     res.status(200).json(ApiResponse(items, "Latest items fetched successfully", true, 200, {
       totalPages: Math.ceil(totalItems / limit),
       currentPage: Number(page),
@@ -333,11 +401,12 @@ exports.getLatestItemsBySubCategory = async (req, res) => {
   }
 };
 
-
-
+/**
+ * Get total item count
+ */
 exports.getTotalItemCount = async (req, res) => {
   try {
-    const totalItems = await Item.countDocuments(); // Get total count without filters
+    const totalItems = await Item.countDocuments();
 
     res.status(200).json(ApiResponse({ totalItems }, "Total item count fetched successfully", true, 200));
   } catch (err) {

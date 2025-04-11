@@ -33,6 +33,7 @@
     "nodemailer": "^6.10.0",
     "nodemon": "^3.1.9",
     "razorpay": "^2.9.5",
-    "twilio": "^5.4.2"
+    "twilio": "^5.4.2",
+    "xlsx": "^0.18.5"
   }
 }

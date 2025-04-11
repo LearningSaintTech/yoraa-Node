@@ -4,7 +4,7 @@ const ItemDetails = require("../../models/ItemDetails");
 const Razorpay = require("razorpay");
 
 const SHIPROCKET_API_BASE = "https://apiv2.shiprocket.in/v1/external";
-const SHIPROCKET_EMAIL = "rithikmahajan40@gmail.com";
+const SHIPROCKET_EMAIL = "support@yoraa.in";
 const SHIPROCKET_PASSWORD = "R@2727thik";
 
 const razorpay = new Razorpay({
@@ -378,12 +378,31 @@ async function generateAWBWithCourier(shipmentId, token) {
 }
 
 exports.createExchangeOrder = async (req, res) => {
+  console.log("=== Starting createExchangeOrder ===");
   try {
-    console.log("=== Starting createExchangeOrder ===");
+    console.log("Raw Request Body:", req.body); // Log raw body
+    console.log("Uploaded Files:", req.files);  // Log uploaded files
+
     const { orderId, newItemId, desiredSize, reason } = req.body;
     const userId = req.user._id;
-    console.log("Request Body:", { orderId, newItemId, desiredSize, reason });
+    const images = req.files; // Array of uploaded files from multer
+
+    console.log("Parsed Request Body:", { orderId, newItemId, desiredSize, reason });
     console.log("User ID:", userId);
+    console.log("Uploaded Images:", images ? images.length : 0);
+
+    // Validate required fields
+    if (!orderId || !newItemId || !desiredSize || !reason) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Missing required fields: orderId, newItemId, desiredSize, and reason are required" 
+      });
+    }
+
+    // Validate image count
+    if (images && images.length > 3) {
+      return res.status(400).json({ success: false, message: "Maximum 3 images allowed" });
+    }
 
     // Step 1: Find the order and validate
     const order = await Order.findById(orderId)
@@ -416,7 +435,19 @@ exports.createExchangeOrder = async (req, res) => {
       return res.status(500).json({ success: false, message: "Failed to authenticate with Shiprocket" });
     }
 
-    // Step 3: Prepare Exchange Order Payload
+    // Step 3: Handle image uploads (e.g., to AWS S3 or local storage)
+    let imageUrls = [];
+    if (images && images.length > 0) {
+      // Placeholder for actual image upload logic (e.g., AWS S3, Cloudinary)
+      imageUrls = images.map(file => {
+        // Simulate upload (replace with real upload logic)
+        console.log(`Processing image: ${file.originalname}`);
+        return `https://example.com/uploads/${file.originalname}`; // Replace with actual URL
+      });
+      console.log("Uploaded Image URLs:", imageUrls);
+    }
+
+    // Step 4: Prepare Exchange Order Payload (unchanged from your code)
     const returnDimensions = order.item_quantities.reduce((acc, qty) => {
       const detail = order.items.find(i => i._id.toString() === qty.item_id.toString())?.dimensions || { length: 10, breadth: 10, height: 10, weight: 0.5 };
       return {
@@ -444,7 +475,7 @@ exports.createExchangeOrder = async (req, res) => {
       return_order_id: `R_${orderId}_${Date.now()}`,
       order_date: new Date().toISOString().split("T")[0],
       payment_method: "prepaid",
-      channel_id: process.env.SHIPROCKET_CHANNEL_ID || "128904",
+      channel_id: process.env.SHIPROCKET_CHANNEL_ID || "6355414",
       buyer_shipping_first_name: order.address.firstName,
       buyer_shipping_address: order.address.address,
       buyer_shipping_city: order.address.city,
@@ -486,7 +517,7 @@ exports.createExchangeOrder = async (req, res) => {
 
     console.log("Exchange Payload:", JSON.stringify(exchangePayload, null, 2));
 
-    // Step 4: Call Shiprocket Exchange Order API
+    // Step 5: Call Shiprocket Exchange Order API
     const exchangeResponse = await fetch(`${SHIPROCKET_API_BASE}/orders/create/exchange`, {
       method: "POST",
       headers: {
@@ -507,7 +538,7 @@ exports.createExchangeOrder = async (req, res) => {
       });
     }
 
-    // Step 5: Assign AWB for return shipment
+    // Step 6: Assign AWB for return shipment
     let returnAwbResult;
     const returnShipmentId = exchangeData.data?.return_orders?.shipment_id;
     if (returnShipmentId) {
@@ -519,7 +550,7 @@ exports.createExchangeOrder = async (req, res) => {
       console.warn("Return shipment ID not found in response");
     }
 
-    // Step 6: Assign AWB for forward shipment
+    // Step 7: Assign AWB for forward shipment
     let forwardAwbResult;
     const forwardShipmentId = exchangeData.data?.forward_orders?.shipment_id;
     if (forwardShipmentId) {
@@ -531,7 +562,7 @@ exports.createExchangeOrder = async (req, res) => {
       console.warn("Forward shipment ID not found in response");
     }
 
-    // Step 7: Update Order with exchange details
+    // Step 8: Update Order with exchange details, including images
     order.exchange = {
       requestDate: new Date(),
       status: "Pending",
@@ -553,6 +584,7 @@ exports.createExchangeOrder = async (req, res) => {
       shiprocketForwardOrderId: exchangeData.data?.forward_orders?.order_id || exchangePayload.exchange_order_id,
       forwardShipmentId: exchangeData.data?.forward_orders?.shipment_id || "",
       notes: "Exchange initiated via Shiprocket Exchange API",
+      images: imageUrls // Store uploaded image URLs
     };
 
     order.item_quantities.forEach(item => {
@@ -561,7 +593,7 @@ exports.createExchangeOrder = async (req, res) => {
 
     await order.save();
 
-    // Step 8: Respond
+    // Step 9: Respond
     res.status(200).json({
       success: true,
       message: "Exchange order created successfully" + 
@@ -579,12 +611,31 @@ exports.createExchangeOrder = async (req, res) => {
   }
 };
 exports.createReturnOrder = async (req, res) => {
+  console.log("=== Starting createReturnOrder ===");
   try {
-    console.log("=== Starting createReturnOrder ===");
+    console.log("Raw Request Body:", req.body); // Log raw body
+    console.log("Uploaded Files:", req.files);  // Log uploaded files
+
     const { orderId, reason } = req.body;
     const userId = req.user._id;
-    console.log("Request Body:", { orderId, reason });
+    const images = req.files; // Array of uploaded files from multer
+
+    console.log("Parsed Request Body:", { orderId, reason });
     console.log("User ID:", userId);
+    console.log("Uploaded Images:", images ? images.length : 0);
+
+    // Validate required fields
+    if (!orderId || !reason) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Missing required fields: orderId and reason are required" 
+      });
+    }
+
+    // Validate image count
+    if (images && images.length > 3) {
+      return res.status(400).json({ success: false, message: "Maximum 3 images allowed" });
+    }
 
     // Step 1: Find and validate the order
     const order = await Order.findById(orderId)
@@ -603,7 +654,7 @@ exports.createReturnOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Order must be delivered to initiate a return" });
     }
 
-    const deliveredDate = order.created_at; // Assuming this is the delivery date; adjust if you track actual delivery date separately
+    const deliveredDate = order.created_at;
     const currentDate = new Date();
     const daysSinceDelivery = (currentDate - new Date(deliveredDate)) / (1000 * 60 * 60 * 24);
     if (daysSinceDelivery > 30) {
@@ -617,7 +668,18 @@ exports.createReturnOrder = async (req, res) => {
       return res.status(500).json({ success: false, message: "Failed to authenticate with Shiprocket" });
     }
 
-    // Step 3: Prepare Return Order Payload
+    // Step 3: Handle image uploads
+    let imageUrls = [];
+    if (images && images.length > 0) {
+      imageUrls = images.map(file => {
+        // Simulate upload (replace with real upload logic)
+        console.log(`Processing image: ${file.originalname}`);
+        return `https://example.com/uploads/${file.originalname}`; // Replace with actual URL
+      });
+      console.log("Uploaded Image URLs:", imageUrls);
+    }
+
+    // Step 4: Prepare Return Order Payload (unchanged)
     const returnDimensions = order.item_quantities.reduce((acc, qty) => {
       const detail = order.items.find(i => i._id.toString() === qty.item_id.toString())?.dimensions || { length: 10, breadth: 10, height: 10, weight: 0.5 };
       return {
@@ -631,7 +693,7 @@ exports.createReturnOrder = async (req, res) => {
     const returnPayload = {
       order_id: `R_${orderId}_${Date.now()}`,
       order_date: new Date().toISOString().split("T")[0],
-      channel_id: process.env.SHIPROCKET_CHANNEL_ID || "128904",
+      channel_id: process.env.SHIPROCKET_CHANNEL_ID || "6355414",
       pickup_customer_name: order.address.firstName,
       pickup_last_name: order.address.lastName || "",
       pickup_address: order.address.address,
@@ -665,19 +727,19 @@ exports.createReturnOrder = async (req, res) => {
           hsn: item?.hsn || "1733808730720",
         };
       }),
-      payment_method: "Prepaid", // Returns are typically prepaid
+      payment_method: "Prepaid",
       total_discount: "0",
       sub_total: order.total_price,
       length: returnDimensions.length || 10,
       breadth: returnDimensions.breadth || 10,
       height: returnDimensions.height || 10,
       weight: returnDimensions.weight || 0.5,
-      return_reason: reason || "Item defective or doesn't work", // Map to Shiprocket return_reason values if needed
+      return_reason: reason || "Item defective or doesn't work",
     };
 
     console.log("Return Payload:", JSON.stringify(returnPayload, null, 2));
 
-    // Step 4: Call Shiprocket Return Order API
+    // Step 5: Call Shiprocket Return Order API
     const returnResponse = await fetch(`${SHIPROCKET_API_BASE}/orders/create/return`, {
       method: "POST",
       headers: {
@@ -698,9 +760,9 @@ exports.createReturnOrder = async (req, res) => {
       });
     }
 
-    // Step 5: Assign AWB for return shipment (if applicable)
+    // Step 6: Assign AWB for return shipment
     let returnAwbResult;
-    const returnShipmentId = returnData.shipment_id; // Adjust based on actual API response
+    const returnShipmentId = returnData.shipment_id;
     if (returnShipmentId) {
       returnAwbResult = await generateAWBWithCourier(returnShipmentId, token);
       if (!returnAwbResult.success) {
@@ -708,7 +770,7 @@ exports.createReturnOrder = async (req, res) => {
       }
     }
 
-    // Step 6: Initiate refund if order was paid
+    // Step 7: Initiate refund if order was paid
     let refundData;
     if (order.payment_status === "Paid" && order.razorpay_payment_id) {
       const refundResponse = await fetch(`https://api.razorpay.com/v1/payments/${order.razorpay_payment_id}/refund`, {
@@ -726,7 +788,7 @@ exports.createReturnOrder = async (req, res) => {
       }
     }
 
-    // Step 7: Update Order with refund details based on API response
+    // Step 8: Update Order with refund details, including images
     order.refund = {
       requestDate: new Date(),
       status: refundData ? "Initiated" : "Pending",
@@ -745,11 +807,12 @@ exports.createReturnOrder = async (req, res) => {
       refundTransactionId: refundData?.id || null,
       refundStatus: refundData ? "Initiated" : null,
       notes: "Return initiated via Shiprocket Return API",
+      images: imageUrls // Store uploaded image URLs
     };
 
     await order.save();
 
-    // Step 8: Respond
+    // Step 9: Respond
     res.status(200).json({
       success: true,
       message: "Return order created successfully" + (refundData ? " and refund initiated" : ""),
@@ -826,7 +889,7 @@ exports.getReturnOrdersByUser = async (req, res) => {
 };
 
 exports.getExchangeOrdersByUser = async (req, res) => {
-  console.log("Fetching exchange orders for user...");
+  console.log("Fetching exchange orders for user...",req);
 
   try {
     const userId = req.user._id;
@@ -886,3 +949,81 @@ exports.getExchangeOrdersByUser = async (req, res) => {
     });
   }
 };
+
+exports.getOrderStatusCounts = async (req, res) => {
+  try {
+    const orderStats = await Order.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalOrdered: {
+            $sum: {
+              $cond: [{ $ne: ["$order_status", "Cancelled"] }, 1, 0]
+            }
+          },
+          totalDelivered: {
+            $sum: {
+              $cond: [{ $eq: ["$shipping_status", "Delivered"] }, 1, 0]
+            }
+          },
+          totalCancelled: {
+            $sum: {
+              $cond: [{ $eq: ["$order_status", "Cancelled"] }, 1, 0]
+            }
+          },
+          totalRefunded: {
+            $sum: {
+              $cond: [
+                { $in: ["$refund.status", ["Processed", "Initiated"]] },
+                1,
+                0
+              ]
+            }
+          },
+          totalExchanged: {
+            $sum: {
+              $cond: [
+                { $in: ["$exchange.status", ["Shipped", "Shiprocket_Shipped"]] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalOrdered: 1,
+          totalDelivered: 1,
+          totalCancelled: 1,
+          totalRefunded: 1,
+          totalExchanged: 1
+        }
+      }
+    ]);
+
+    const stats = orderStats.length > 0 ? orderStats[0] : {
+      totalOrdered: 0,
+      totalDelivered: 0,
+      totalCancelled: 0,
+      totalRefunded: 0,
+      totalExchanged: 0
+    };
+
+    console.log("Order Status Counts:", stats);
+
+    res.status(200).json({
+      success: true,
+      message: "Order status counts retrieved successfully",
+      data: stats
+    });
+  } catch (error) {
+    console.error("Error fetching order status counts:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+}

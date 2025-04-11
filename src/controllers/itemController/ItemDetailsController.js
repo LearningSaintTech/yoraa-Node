@@ -1,51 +1,143 @@
 const ItemDetails = require("../../models/ItemDetails");
 const Item = require("../../models/Item");
 const { uploadMultipart, deleteFileFromS3 } = require("../../utils/S3");
-const SubCategory = require("../../models/SubCategory");
+const XLSX = require("xlsx");
 
-// ✅ CREATE ItemDetails
+const parseExcelToSizeChart = (file) => {
+  const workbook = XLSX.read(file.buffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+  const headers = jsonData[0];
+  const rows = jsonData.slice(1);
+
+  return rows.map(row => ({
+    measurements: headers.reduce((obj, header, index) => {
+      obj[header] = row[index];
+      return obj;
+    }, {}),
+  }));
+};
+const processMediaUploads = async (files, subCategoryId, itemId, colorNames = []) => {
+  const imageFiles = files?.images || [];
+  const videoFiles = files?.videos || [];
+  const allFiles = [...imageFiles, ...videoFiles];
+
+  if (allFiles.length === 0) return [];
+
+  const colorDataMap = new Map();
+
+  // Initialize colorDataMap with colors from req.body.colors
+  colorNames.forEach(color => colorDataMap.set(color, { color, images: [], sizes: [] }));
+
+  // Create an array of upload promises
+  const uploadPromises = allFiles.map(async (file, index) => {
+    const inferredColor = file.originalname.split("_")[0];
+    const targetColor = colorNames.includes(inferredColor) 
+      ? inferredColor 
+      : colorNames[index % colorNames.length] || colorNames[0];
+
+    const type = file.fieldname === "images" ? "image" : "video";
+    console.log(`[Server] Uploading ${file.originalname} for color ${targetColor}`);
+    const url = await uploadMultipart(
+      file,
+      `categories/${subCategoryId}/${itemId}`,
+      `${targetColor}_${type}_${index}`
+    );
+    console.log(`[Server] Uploaded ${file.originalname} to ${url}`);
+
+    if (!colorDataMap.has(targetColor)) {
+      colorDataMap.set(targetColor, { color: targetColor, images: [], sizes: [] });
+    }
+    colorDataMap.get(targetColor).images.push({ url, type, priority: index });
+  });
+
+  // Wait for all uploads to complete
+  await Promise.all(uploadPromises);
+
+  console.log("[Server] All uploads completed, colorDataMap:", Array.from(colorDataMap.values()));
+  return Array.from(colorDataMap.values());
+};
+
 exports.createItemDetails = async (req, res) => {
   try {
-    console.log("[REQUEST] Incoming data:", JSON.stringify(req.body, null, 2));
-    console.log("[FILES] Incoming files:", req.files);
-
     const { itemId } = req.params;
-    console.log("[STEP 1] Received itemId:", itemId);
-
     const itemExists = await Item.findById(itemId);
-    console.log("[STEP 2] Item exists?", !!itemExists);
     if (!itemExists) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    let itemDetailsData = {};
-    if (req.body.data) {
-      try {
-        itemDetailsData = JSON.parse(req.body.data);
-        console.log("[STEP 3] Parsed itemDetailsData:", itemDetailsData);
-      } catch (error) {
-        console.error("[ERROR] Invalid JSON in 'data' field:", error.message);
-        return res.status(400).json({ error: "Invalid JSON format in 'data' field" });
-      }
-    }
+    console.log("[Server] req.body:", req.body);
 
-    console.log("[STEP 4] Processing media uploads...");
-    const media = await processMediaUploads(req.files, itemExists.subCategoryId, itemId);
-    console.log("[STEP 5] Media processed:", JSON.stringify(media, null, 2));
+    let itemDetailsData = req.body.data ? JSON.parse(req.body.data) : {};
+    console.log("[Server] Parsed itemDetailsData:", itemDetailsData);
+
+    // Ensure arrays are properly formatted
+    itemDetailsData.fitDetails = Array.isArray(itemDetailsData.fitDetails) ? itemDetailsData.fitDetails : [];
+    itemDetailsData.shippingAndReturns = itemDetailsData.shippingAndReturns || {
+      shippingDetails: [],
+      returnPolicy: [],
+    };
+
+    // Parse the colors field from req.body.colors
+    const colorNames = req.body.colors ? JSON.parse(req.body.colors) : [];
+    console.log("[Server] Color names from req.body.colors:", colorNames);
+
+    // Process media uploads with colorNames
+    const colors = await processMediaUploads(req.files, itemExists.subCategoryId, itemId, colorNames);
+    console.log("[Server] Colors from processMediaUploads:", colors);
+
+    // Merge sizes from itemDetailsData into the colors array
+    if (itemDetailsData.colors) {
+      itemDetailsData.colors.forEach(dataColor => {
+        const colorEntry = colors.find(c => c.color === dataColor.color);
+        if (colorEntry) {
+          colorEntry.sizes = dataColor.sizes || [];
+        } else {
+          colors.push({
+            color: dataColor.color,
+            images: [],
+            sizes: dataColor.sizes || [],
+          });
+        }
+      });
+    }
+    console.log("[Server] Colors after merging sizes:", colors);
+
+    let sizeChartInch = [];
+    let sizeChartCm = [];
+    let sizeMeasurement = null;
+
+    if (req.files?.sizeChartInch?.[0]) {
+      sizeChartInch = parseExcelToSizeChart(req.files.sizeChartInch[0]);
+    }
+    if (req.files?.sizeChartCm?.[0]) {
+      sizeChartCm = parseExcelToSizeChart(req.files.sizeChartCm[0]);
+    }
+    if (req.files?.sizeMeasurement?.[0]) {
+      sizeMeasurement = await uploadMultipart(
+        req.files.sizeMeasurement[0],
+        `categories/${itemExists.subCategoryId}/${itemId}`,
+        `sizeMeasurement_${Date.now()}`
+      );
+    }
 
     const newItemDetails = new ItemDetails({
       ...itemDetailsData,
+      colors,
+      sizeChartInch,
+      sizeChartCm,
+      sizeMeasurement,
       items: itemId,
-      media,
     });
-    console.log("[STEP 6] New ItemDetails object:", JSON.stringify(newItemDetails, null, 2));
+
+    console.log("[Server] newItemDetails before save:", newItemDetails);
 
     itemExists.isItemDetail = true;
     await itemExists.save();
-    console.log("[STEP 7] Updated Item with isItemDetail flag:", itemExists);
-
     const savedDetails = await newItemDetails.save();
-    console.log("[RESPONSE] Saved ItemDetails:", JSON.stringify(savedDetails, null, 2));
+
+    console.log("[Server] Saved ItemDetails:", savedDetails);
 
     res.status(201).json(savedDetails);
   } catch (error) {
@@ -56,252 +148,109 @@ exports.createItemDetails = async (req, res) => {
 
 exports.updateItemDetails = async (req, res) => {
   try {
-    console.log("Received request to update item details", req.params, req.body);
-
     const { itemId } = req.params;
     const itemExists = await Item.findById(itemId);
     if (!itemExists) {
-      console.log("Item not found", itemId);
       return res.status(404).json({ error: "Item not found" });
     }
 
-    console.log("Item found", itemExists);
     const existingDetails = await ItemDetails.findOne({ items: itemId });
     if (!existingDetails) {
-      console.log("Item Details not found for item", itemId);
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    console.log("Existing item details found", existingDetails);
+    let itemDetailsData = req.body.data ? JSON.parse(req.body.data) : {};
+    let deletedMedia = req.body.deletedMedia ? JSON.parse(req.body.deletedMedia) : [];
 
-    // Parse request data
-    let itemDetailsData = {};
-    let colors = [];
-    let priorityArray = [];
-    let deletedMedia = [];
+    // Preserve existing colors and sizes
+    const colors = existingDetails.colors.map(color => ({
+      ...color.toObject(),
+      images: [...color.images],
+      sizes: [...color.sizes],
+    }));
 
-    try {
-      if (req.body.data) itemDetailsData = JSON.parse(req.body.data);
-      if (req.body.colors) colors = JSON.parse(req.body.colors);
-      if (req.body.priority) priorityArray = JSON.parse(req.body.priority);
-      if (req.body.deletedMedia) deletedMedia = JSON.parse(req.body.deletedMedia);
-    } catch (error) {
-      console.error("Failed to parse JSON data", error);
-      return res.status(400).json({ error: "Invalid JSON format in request body" });
-    }
-
-    console.log("Parsed item details data", itemDetailsData);
-    console.log("Parsed colors", colors);
-    console.log("Parsed priorities", priorityArray);
-    console.log("Parsed deleted media", deletedMedia);
-
-    // Ensure fitDetails and sizes are arrays
-    if (!Array.isArray(itemDetailsData.fitDetails)) {
-      itemDetailsData.fitDetails = itemDetailsData.fitDetails ? [itemDetailsData.fitDetails] : existingDetails.fitDetails || [];
-    }
-    if (itemDetailsData.sizes && !Array.isArray(itemDetailsData.sizes)) {
-      itemDetailsData.sizes = [itemDetailsData.sizes];
-    }
-
-    const existingSubCategory = await SubCategory.findOne({ _id: itemExists.subCategoryId });
-    const categoryId = existingSubCategory.categoryId;
-    console.log("Found category and subcategory", categoryId, existingSubCategory);
-
-    let media = [...(existingDetails.media || [])];
-
-    // Handle deleted media
+    // Handle media deletions
     if (deletedMedia.length > 0) {
-      console.log("Processing deleted media", deletedMedia);
-      const mediaToDelete = [];
-      media = media.map((colorGroup) => {
-        const updatedMediaItems = colorGroup.mediaItems.filter((item) => {
-          const shouldDelete = deletedMedia.some((d) => d.url === item.url && d.color === colorGroup.color);
-          if (shouldDelete) mediaToDelete.push(item.url);
+      const urlsToDelete = [];
+      colors.forEach(color => {
+        color.images = color.images.filter(image => {
+          const shouldDelete = deletedMedia.some(d => d.url === image.url && d.color === color.color);
+          if (shouldDelete) urlsToDelete.push(image.url);
           return !shouldDelete;
         });
-        return { ...colorGroup, mediaItems: updatedMediaItems };
-      }).filter((group) => group.mediaItems.length > 0);
-
-      if (mediaToDelete.length > 0) {
-        await deleteFileFromS3(mediaToDelete);
-        console.log("Deleted media from S3", mediaToDelete);
+      });
+      if (urlsToDelete.length > 0) {
+        await deleteFileFromS3(urlsToDelete);
       }
     }
 
-    const totalMediaPerColor = 5;
-    const newImageFiles = req.files?.images || [];
-    const newVideoFiles = req.files?.videos || [];
-    const newMediaFiles = [...newImageFiles, ...newVideoFiles];
-
-    // Validate and process new media
-    if (newMediaFiles.length > 0 || colors.length > 0) {
-      if (newMediaFiles.length > colors.length * totalMediaPerColor) {
-        console.log("Too many media items for colors", colors);
-        return res.status(400).json({ error: `Cannot upload more than ${totalMediaPerColor} media items per color.` });
+    // Handle new media uploads
+    const newColors = await processMediaUploads(req.files, itemExists.subCategoryId, itemId);
+    newColors.forEach(newColor => {
+      const existingColor = colors.find(c => c.color === newColor.color);
+      if (existingColor) {
+        existingColor.images = [...existingColor.images, ...newColor.images];
+      } else {
+        colors.push(newColor);
       }
+    });
 
-      console.log("Uploading new media files", newMediaFiles);
-      let fileIndex = 0;
-      for (let i = 0; i < colors.length; i++) {
-        const color = colors[i];
-        const mediaForColor = newMediaFiles.slice(fileIndex, fileIndex + totalMediaPerColor).filter(Boolean); // Filter out undefined
-
-        if (mediaForColor.length > 0) {
-          const uploadPromises = mediaForColor.map((file, index) => {
-            if (!file) return Promise.resolve(null); // Skip if no file
-            const mediaType = file.fieldname === "images" ? "image" : "video";
-            const priority = priorityArray[fileIndex + index] != null ? priorityArray[fileIndex + index] : fileIndex + index; // Default to sequential if no priority
-            return uploadMultipart(file, `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/media/${color}_${mediaType}_${index}`)
-              .then((url) => url ? { url, type: mediaType, priority } : null)
-              .catch((error) => {
-                console.error("Error uploading media", error);
-                return null;
-              });
+    // Update sizes from request data
+    if (itemDetailsData.colors) {
+      itemDetailsData.colors.forEach(dataColor => {
+        const colorEntry = colors.find(c => c.color === dataColor.color);
+        if (colorEntry && dataColor.sizes) {
+          colorEntry.sizes = dataColor.sizes;
+        } else if (!colorEntry) {
+          colors.push({
+            color: dataColor.color,
+            images: [],
+            sizes: dataColor.sizes || [],
           });
-
-          const mediaItems = (await Promise.all(uploadPromises)).filter(Boolean); // Filter out nulls
-          console.log("Uploaded media items for color", color, mediaItems);
-
-          const existingColorGroup = media.find((group) => group.color === color);
-          if (existingColorGroup) {
-            existingColorGroup.mediaItems = [...existingColorGroup.mediaItems, ...mediaItems];
-          } else {
-            media.push({ color, mediaItems: mediaItems });
-          }
-
-          fileIndex += mediaForColor.length;
         }
-      }
-    }
-
-    // Apply priorities from frontend if provided, otherwise sort by existing priority
-    const allMediaItems = media.flatMap((group) => group.mediaItems);
-    if (priorityArray.length === allMediaItems.length) {
-      allMediaItems.forEach((item, index) => {
-        item.priority = priorityArray[index];
-      });
-    } else {
-      // Sort by existing or default priority
-      allMediaItems.sort((a, b) => (a.priority || 0) - (b.priority || 0));
-      allMediaItems.forEach((item, index) => {
-        item.priority = index;
       });
     }
 
-    // Reorganize media by color
-    media = colors.map(color => ({
-      color,
-      mediaItems: allMediaItems.filter(item => 
-        media.find(group => group.color === color)?.mediaItems.some(m => m.url === item.url)
-      )
-    })).filter(group => group.mediaItems.length > 0);
-
-    console.log("Sorted and prioritized media", media);
-
-    // Handle size charts and measurements
+    // Update size charts and measurement
     let sizeChartInch = existingDetails.sizeChartInch;
-    if (req.files?.sizeChartInch?.[0]) {
-      console.log("Uploading new size chart (inch)");
-      if (sizeChartInch) await deleteFileFromS3([sizeChartInch]);
-      sizeChartInch = await uploadMultipart(req.files.sizeChartInch[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartInch`);
-    }
-
     let sizeChartCm = existingDetails.sizeChartCm;
-    if (req.files?.sizeChartCm?.[0]) {
-      console.log("Uploading new size chart (cm)");
-      if (sizeChartCm) await deleteFileFromS3([sizeChartCm]);
-      sizeChartCm = await uploadMultipart(req.files.sizeChartCm[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeChartCm`);
-    }
-
     let sizeMeasurement = existingDetails.sizeMeasurement;
+
+    if (req.files?.sizeChartInch?.[0]) {
+      sizeChartInch = parseExcelToSizeChart(req.files.sizeChartInch[0]);
+    }
+    if (req.files?.sizeChartCm?.[0]) {
+      sizeChartCm = parseExcelToSizeChart(req.files.sizeChartCm[0]);
+    }
     if (req.files?.sizeMeasurement?.[0]) {
-      console.log("Uploading new size measurement file");
       if (sizeMeasurement) await deleteFileFromS3([sizeMeasurement]);
-      sizeMeasurement = await uploadMultipart(req.files.sizeMeasurement[0], `categories/${categoryId}/${existingSubCategory._id}`, `${itemId}/sizeMeasurement`);
+      sizeMeasurement = await uploadMultipart(
+        req.files.sizeMeasurement[0],
+        `categories/${itemExists.subCategoryId}/${itemId}`,
+        `sizeMeasurement_${Date.now()}`
+      );
     }
 
-    console.log("Saving updated item details...");
     const updatedDetails = await ItemDetails.findOneAndUpdate(
       { items: itemId },
       {
         ...itemDetailsData,
-        items: itemId,
-        media,
+        colors,
         sizeChartInch,
         sizeChartCm,
         sizeMeasurement,
-        __v: existingDetails.__v + 1, // Increment version
+        items: itemId,
       },
       { new: true, runValidators: true }
     ).populate("items");
 
-    console.log("Item details updated successfully", updatedDetails);
     res.status(200).json(updatedDetails);
-
   } catch (error) {
     console.error("Error updating item details", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
-  }
-};
-
-
-// ✅ READ ALL ItemDetails
-exports.getAllItemDetails = async (req, res) => {
-  try {
-    const details = await ItemDetails.find().populate("items");
-    res.status(200).json(details);
-  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ✅ READ SINGLE ItemDetails BY ITEM ID
-exports.getItemDetailsByItemId = async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const details = await ItemDetails.findOne({ items: itemId }).populate("items");
-    if (!details) {
-      return res.status(404).json({ error: "Item Details not found for the given Item ID" });
-    }
-    console.log("details",details)
-    res.status(200).json(details);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ✅ UPDATE ItemDetails
-
-
-// ✅ DELETE ItemDetails with S3 Media Cleanup
-exports.deleteItemDetails = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const itemDetails = await ItemDetails.findById(id);
-    if (!itemDetails) {
-      return res.status(404).json({ error: "Item Details not found" });
-    }
-
-    const allMedia = [
-      ...itemDetails.media.flatMap((group) => group.mediaItems.map((item) => item.url)),
-      itemDetails.sizeChartInch,
-      itemDetails.sizeChartCm,
-      itemDetails.sizeMeasurement,
-    ].filter(Boolean);
-    if (allMedia.length > 0) {
-      await deleteFileFromS3(allMedia);
-    }
-
-    await ItemDetails.findByIdAndDelete(id);
-    await Item.findByIdAndUpdate(itemDetails.items, { isItemDetail: false });
-
-    res.status(200).json({ message: "Item Details deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// ✅ DELETE Specific Media from ItemDetails
 exports.deleteMediaFromItemDetails = async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -315,23 +264,126 @@ exports.deleteMediaFromItemDetails = async (req, res) => {
       return res.status(404).json({ error: "Item Details not found" });
     }
 
-    const colorGroup = itemDetails.media.find((group) => group.color === color);
+    const colorGroup = itemDetails.colors.find(c => c.color === color);
     if (!colorGroup) {
-      return res.status(404).json({ error: "Color group not found" });
+      return res.status(404).json({ error: "Color not found" });
     }
 
-    const mediaIndex = colorGroup.mediaItems.findIndex((item) => item.url === mediaUrl);
-    if (mediaIndex !== -1) {
-      await deleteFileFromS3([mediaUrl]);
-      colorGroup.mediaItems.splice(mediaIndex, 1);
-      if (colorGroup.mediaItems.length === 0) {
-        itemDetails.media = itemDetails.media.filter((group) => group.color !== color);
-      }
-      await itemDetails.save();
-      res.status(200).json({ message: "Media deleted successfully", updatedDetails: itemDetails });
-    } else {
-      return res.status(404).json({ error: "Media not found in Item Details" });
+    const imageIndex = colorGroup.images.findIndex(img => img.url === mediaUrl);
+    if (imageIndex === -1) {
+      return res.status(404).json({ error: "Media not found" });
     }
+
+    await deleteFileFromS3([mediaUrl]);
+    colorGroup.images.splice(imageIndex, 1);
+
+    if (colorGroup.images.length === 0 && colorGroup.sizes.length === 0) {
+      itemDetails.colors = itemDetails.colors.filter(c => c.color !== color);
+    }
+
+    await itemDetails.save();
+    res.status(200).json({ message: "Media deleted successfully", updatedDetails: itemDetails });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getZeroStockItemDetails = async (req, res) => {
+  try {
+    const zeroStockItems = await ItemDetails.find({
+      "colors.sizes.stock": 0,
+    }).populate("items");
+
+    if (zeroStockItems.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No items with zero stock found",
+        data: [],
+      });
+    }
+
+    const filteredItems = zeroStockItems.map(item => {
+      const updatedColors = item.colors.map(color => ({
+        ...color.toObject(),
+        sizes: color.sizes.filter(size => size.stock === 0),
+      })).filter(color => color.sizes.length > 0);
+      return {
+        ...item._doc,
+        colors: updatedColors,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Items with zero stock retrieved successfully",
+      data: filteredItems,
+    });
+  } catch (error) {
+    console.error("Error fetching zero stock items:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getOutOfStockCount = async (req, res) => {
+  try {
+    const outOfStockCount = await ItemDetails.countDocuments({
+      "colors.sizes.stock": 0,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Out-of-stock count retrieved successfully",
+      count: outOfStockCount,
+    });
+  } catch (error) {
+    console.error("Error counting out-of-stock items:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getAllItemDetails = async (req, res) => {
+  try {
+    const details = await ItemDetails.find().populate("items");
+    res.status(200).json(details);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getItemDetailsByItemId = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const details = await ItemDetails.findOne({ items: itemId }).populate("items");
+    if (!details) {
+      return res.status(404).json({ error: "Item Details not found for the given Item ID" });
+    }
+    res.status(200).json(details);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteItemDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const itemDetails = await ItemDetails.findById(id);
+    if (!itemDetails) {
+      return res.status(404).json({ error: "Item Details not found" });
+    }
+
+    const allMedia = [
+      ...itemDetails.colors.flatMap(color => color.images.map(img => img.url)),
+      itemDetails.sizeMeasurement,
+    ].filter(Boolean);
+
+    if (allMedia.length > 0) {
+      await deleteFileFromS3(allMedia);
+    }
+
+    await ItemDetails.findByIdAndDelete(id);
+    await Item.findByIdAndUpdate(itemDetails.items, { isItemDetail: false });
+
+    res.status(200).json({ message: "Item Details deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

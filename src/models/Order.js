@@ -28,8 +28,9 @@ const OrderSchema = new mongoose.Schema(
     item_quantities: [
       {
         item_id: { type: mongoose.Schema.Types.ObjectId, ref: "Item", required: true },
+        sku: { type: String, required: true }, // Add SKU field
         quantity: { type: Number, required: true, min: 1 },
-        desiredSize: { type: String }, // Optional, for exchange compatibility
+        desiredSize: { type: String }, // Still optional for exchange
       },
     ],
 
@@ -105,6 +106,7 @@ const OrderSchema = new mongoose.Schema(
       refundTransactionId: { type: String, sparse: true }, // Razorpay refund transaction ID
       refundStatus: { type: String, sparse: true }, // Razorpay refund status
       notes: { type: String, sparse: true }, // Additional notes
+      images: [{ type: String, sparse: true }], // Array to store up to 3 image URLs
     },
 
     // Exchange Subdocument
@@ -129,6 +131,7 @@ const OrderSchema = new mongoose.Schema(
       shiprocketForwardOrderId: { type: String, sparse: true }, // Shiprocket forward order ID
       forwardShipmentId: { type: String, sparse: true }, // Shiprocket forward shipment ID (for AWB generation)
       notes: { type: String, sparse: true }, // Additional notes
+      images: [{ type: String, sparse: true }], // Array to store up to 3 image URLs
     },
   },
   { timestamps: true }
